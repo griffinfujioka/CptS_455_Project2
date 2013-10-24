@@ -1,0 +1,15 @@
+# graph for Chapter 4 problem 3
+A B 1
+A C 4
+B C 2
+B D 9
+B G 4
+B H 2
+C D 1
+C E 3
+D E 1
+D F 3
+D G 1
+E F 1
+F G 6
+G H 14

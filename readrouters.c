@@ -60,6 +60,7 @@ routerInfo* readrouters(char* path)
 	{
 		filename = (char*)malloc(strlen(path)+9);
 		strncpy(filename,path,strlen(path)+9);
+		printf("\nDirectory: %s\n", filename); 
 	}
 	
 	strcat(filename,"/routers");
