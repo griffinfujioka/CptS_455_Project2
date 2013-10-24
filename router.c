@@ -14,6 +14,9 @@ int main(int argc, char* argv[])
 	linkInfo* routerLinks; 
 	routerInfo* tmp;
 	neighborSocket* neighbors; 
+	ssize_t numBytes = 0; 
+
+	char messageBuffer[1024]; 
 
 	int i = 0; 
 
@@ -122,7 +125,7 @@ int main(int argc, char* argv[])
         FD_SET(0, &rfds);		// add a file descriptor to the set 
 
        /* Wait up to 30 seconds. */
-       tv.tv_sec = 30;
+       tv.tv_sec = 5;
        tv.tv_usec = 0;
 
        // Check which routers have updates for you, 
@@ -143,12 +146,59 @@ int main(int argc, char* argv[])
 
        for(i = 0; i < MAXPAIRS; i++)
        {
-       		if(FD_ISSET(i, &rfds))
-       		{
+       		
        			// This socket has data to share 
        			neighborSocket* neighbor = &neighborSocketArray[i]; 
-       		}	
-       } 
+
+       			// Receive datagrams in the format of: 
+       			// 		- Router update messages: U dest cost
+       			// 		- Link cost messages: L neighbor cost 
+
+
+       			// Make appropriate changes to the routing table
+       			// If there are changes, send the changes to neighbors
+       			// using U-messages (known as a Triggered Update)
+
+       			// Print a standard output message
+
+       			// Send updates to neighbors using U messages 
+       			
+				if(neighbor->neighbor == 0)
+					break; 
+
+				// need to do more to setup the socket 
+
+				printf("\n%d.", i + 1); 
+				printf("\nNeighbor: %s", neighbor->neighbor); 
+				printf("\nSocket: %d", neighbor->socket); 
+				printf("\n"); 
+
+				// Receive some updates from the socket 
+				//numBytes = recv(neighbor->socket, messageBuffer, 128, 0); 
+
+				// if(numBytes < 0)
+				// 	DieWithSystemMessage("recv() failed"); 
+    //             else if(numBytes == 0)
+    //                 DieWithUserMessage("recv()", "connection closed prematurely"); 
+
+				// printf("\nReceived %zu bytes from %s (socket #%d): %s", numBytes, neighbor->neighbor, neighbor->socket, messageBuffer); 
+
+				printf("\nSending a U-message to %s using socket %d", neighbor->neighbor, neighbor->socket); 
+				numBytes = send(neighbor->socket, routerInfoTable, sizeof(routerInfoTable), 0); 
+
+				if(numBytes < 0)
+					DieWithSystemMessage("send() failed"); 
+                else if(numBytes == 0)
+                    DieWithUserMessage("send()", "connection closed prematurely"); 
+
+				printf("\nSent %zu bytes to %s (socket #%d)", numBytes, neighbor->neighbor, neighbor->socket); 
+
+				// Use createSockets to construct connected datagram sockets
+				// for talking to neighbors 
+		    
+		}
+
+		printf("\nFinished updating!"); 
 
        //printf("\nNeighbor %s has something to say.", neighbor->neighbor); 
 
@@ -163,8 +213,8 @@ int main(int argc, char* argv[])
 	}
 
 	
-
-
+	printf("\nPress any key to exit..."); 
+	char ch = getchar(); 
 
 	
 	return 0; 
