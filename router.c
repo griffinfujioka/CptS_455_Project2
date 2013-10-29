@@ -10,6 +10,8 @@ static const int MAXPENDING = 5;                 // Maximum outstanding connecti
 
 static const int DEBUG = 1; 
 
+static int connectedNeighborSocket[MAXPAIRS]; 
+
 // Given a neighboring router's name, look up and return that router's 
 // (neighbor, socket) combination 
 neighborSocket* GetNeighborSocket(char* name)
@@ -128,7 +130,7 @@ int main(int argc, char* argv[])
 	// Read the links for this router 
 	routerLinks = readlinks(directory, router); 
 
-	// Should I initialize my routing table here? 
+	// Should I initialize my routing table here or am I set?  
 
 	// Create connected datagram sockets for talking to neighbors
 	// and provide us an array of (neighbor, socket) pairs
@@ -136,6 +138,8 @@ int main(int argc, char* argv[])
 	// 		(1) socket
 	// 		(2) bind
 	// 		(3) connect 
+	// Which means we need to take care of: 
+	// 		(1) send/recv
 	neighbors = createConnections(router); 
 
 	if(DEBUG)
@@ -213,6 +217,11 @@ int main(int argc, char* argv[])
 
 	// Setup the receiving socket. Bind it to the local baseport
 	// to receive L and P messages (but not U messages) 
+	// That means we have to: 
+	// 		(1) socket() to create the socket 
+	// 		(2) bind() the socket to a local address
+	// 		(3) listen() for connections 
+	// 		(4) accept() a connection 
    	// Create socket for incoming connections 
 
     if((receivingSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
@@ -239,19 +248,13 @@ int main(int argc, char* argv[])
     printf("\nSuccessfully marked socket for listening..."); 
 
 
-    
-
-
 
 	for(;;)			// Run forever 
 	{
-		// Recycle these variables?
-		routerConfiguration = &routerInfoTable[0]; 
-		routerLinks = &linkInfoTable[0]; 
+		// Do I need to setup the router for receiving within my infinite loop?
+		// Do I need to invoke createConnections within my infinite loop? 
 
-		// zero out the buffer, start from scratch 
-		// memset(&neighborSocketArray, 0, sizeof(neighborSocketArray)); 
-		// neighbors = createConnections(router); 
+		printf("\nThere are %d connections in the neighborSocketArray", count); 
 
 
 		printf("\n--\n--"); 
@@ -275,31 +278,31 @@ int main(int argc, char* argv[])
 
        	// Look through the existing connections to see if any of the 
        	// sockets have data 
-    //    	for(i=0; i < MAXROUTERS; i++)
-    //    	{
-    //    		printf("\n%d", i); 
-    //    		if(FD_ISSET(i, &rfds))
-    //    		{
-    //    			if(DEBUG)
-    //    			{
-    //    				printf("\nSocket #%d got somethin' to say!", i); 
-    //    			}
+       	for(i=0; i < MAXROUTERS; i++)
+       	{
+       		printf("\n%d", i); 
+       		if(FD_ISSET(i, &rfds))
+       		{
+       			if(DEBUG)
+       			{
+       				printf("\nSocket #%d got somethin' to say!", i); 
+       			}
 
-   	// 			neighborAddrLength = sizeof(neighborAddr); 
+   				neighborAddrLength = sizeof(neighborAddr); 
 
-   	// 			if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
-				// {
-				// 	printf("\naccept failed()"); 
-				// }
-				// else
-				// {
-				// 	if(DEBUG)
-				// 	{
-				// 		printf("\nSuccessfully accepted neighborSock"); 
-				// 	}
-				// }
-    //    		}
-    //    	}
+   				if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
+				{
+					printf("\naccept failed()"); 
+				}
+				else
+				{
+					if(DEBUG)
+					{
+						printf("\nSuccessfully accepted neighborSock"); 
+					}
+				}
+       		}
+       	}
 
   //      	if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
 		// {
@@ -378,13 +381,14 @@ int main(int argc, char* argv[])
 			numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
 
             if(numBytes < 0)
-                DieWithSystemMessage("send() failed\n"); 
+                DieWithSystemMessage("send() failed"); 
         	else if(numBytes != sizeof(messageBuffer))
                 DieWithUserMessage("send()", "sent unexpected number of bytes"); 
 
             printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
             
 
+            // Should I close all sockets before re-entering the infinite loop?
             //CloseAllSockets(); 
 
             if(DEBUG)
