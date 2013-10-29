@@ -60,23 +60,6 @@ routerInfo* GetRouterInfo(char* router)
 
 }
 
-void CloseAllSockets()
-{
-	int i = 0; 
-	while(i < MAXPAIRS)
-	{
-		neighborSocket* neighbor = &neighborSocketArray[i]; 
-
-		if(neighbor->neighbor == 0)
-			break; 
-
-		close(neighbor->socket); 
-
-
-		i++; 
-	}
-}
-
 
 int main(int argc, char* argv[])
 {
@@ -89,6 +72,8 @@ int main(int argc, char* argv[])
 	in_port_t receivingPort; 			// port for receiving messages 
 	int receivingSocket;                 // Socket descriptor 
 	fd_set rfds;						// set of file descriptors for select()
+	/* master file descriptor set - will be shadow copied into rfds on each iteration */ 
+	fd_set masterFD_Set; 	
     struct timeval tv;					// timeout boundary 
     int retval;							// return value of select()
     struct sockaddr_in neighborAddr;    // buffer for addresses neighboring router
@@ -196,11 +181,19 @@ int main(int argc, char* argv[])
 
 		}
 
+		FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
+		FD_ZERO(&rfds);					// clear the temp file descriptor set  
+		FD_SET(0, &masterFD_Set); 		// add file descriptor for keyboard 
+
 		printf("\nNeighbor sockets: "); 
 		i = 0; 
 		while(i < MAXPAIRS)
 		{
 			neighbors = &neighborSocketArray[i]; 
+
+
+
+			
 
 			if(neighbors->neighbor == 0)
 				break; 
@@ -208,6 +201,14 @@ int main(int argc, char* argv[])
 			printf("\n%d.", i + 1); 
 			printf("\nNeighbor: %s", neighbors->neighbor); 
 			printf("\nSocket: %d", neighbors->socket); 
+			// add the socket file descriptor to the master FD set
+			FD_SET(neighbors->socket, &masterFD_Set); 	
+			printf("\nAdded socket %d to master file descriptor set", neighbors->socket); 
+
+			
+
+			
+
 			printf("\n"); 
 
 
@@ -224,28 +225,8 @@ int main(int argc, char* argv[])
 	// 		(4) accept() a connection 
    	// Create socket for incoming connections 
 
-    if((receivingSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-        DieWithSystemMessage("socket() failed"); 
-    printf("\nSuccessfully created receiving socket (#%d)", receivingSocket); 
-
-   	// Construct local address structure 
-    struct sockaddr_in myAddr;                                         // local address
-    memset(&myAddr, 0, sizeof(myAddr));                 			// zero out structure 
-    myAddr.sin_family = AF_INET;                                      // IPV4 address family 
-    myAddr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
-    myAddr.sin_port = htons(receivingPort);                         // local port 
-
-    // Bind to the local address 
-    if(bind(receivingSocket, (struct sockaddr*) &myAddr, sizeof(myAddr)) < 0)
-        DieWithSystemMessage("bind() failed"); 
-
-    printf("\nSuccessfully bound to local address..."); 
-
-    // Mark the socket so it will list for incoming connections 
-    if(listen(receivingSocket, MAXPENDING) < 0)
-        DieWithSystemMessage("listen() failed"); 
-
-    printf("\nSuccessfully marked socket for listening..."); 
+    // Keep a master version of the set of file descriptors,
+    // Shadow copy it into &rfds each time 
 
 
 
@@ -261,7 +242,8 @@ int main(int argc, char* argv[])
 		printf("\nWaiting for updates from fellow routers in my network..."); 
 
         FD_ZERO(&rfds);			// clear the file descriptor set  
-        FD_SET(0, &rfds);		// add a file descriptor to the set 
+        rfds = masterFD_Set; 
+
 
    		/* Wait up to 30 seconds. */
    		tv.tv_sec = 5;
@@ -275,46 +257,6 @@ int main(int argc, char* argv[])
        		printf("\nNone of my neighbors have updates for me..."); 
        	else if(retval)
        		printf("\nData is available now from %d socket(s).", retval); 
-
-       	// Look through the existing connections to see if any of the 
-       	// sockets have data 
-       	for(i=0; i < MAXROUTERS; i++)
-       	{
-       		printf("\n%d", i); 
-       		if(FD_ISSET(i, &rfds))
-       		{
-       			if(DEBUG)
-       			{
-       				printf("\nSocket #%d got somethin' to say!", i); 
-       			}
-
-   				neighborAddrLength = sizeof(neighborAddr); 
-
-   				if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
-				{
-					printf("\naccept failed()"); 
-				}
-				else
-				{
-					if(DEBUG)
-					{
-						printf("\nSuccessfully accepted neighborSock"); 
-					}
-				}
-       		}
-       	}
-
-  //      	if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
-		// {
-		// 	printf("\naccept failed()"); 
-		// }
-		// else
-		// {
-		// 	if(DEBUG)
-		// 	{
-		// 		printf("\nSuccessfully accepted neighborSock"); 
-		// 	}
-		// }
 
 
        	i = 0; 
@@ -396,54 +338,6 @@ int main(int argc, char* argv[])
 
 		}
        
-
-  //      int i = 0; 
-
-  //      for(i = 0; i < MAXPAIRS; i++)
-  //      {
-  //      			neighborSocket* neighbor = &neighborSocketArray[i]; 
-
-  //      			if(neighbor->neighbor == 0)
-		// 			break; 
-
-		// 		// connect() 
-
-  //      			// Receive datagrams in the format of: 
-  //      			// 		- Router update messages: U dest cost
-  //      			// 		- Link cost messages: L neighbor cost 
-
-
-  //      			// Make appropriate changes to the routing table
-  //      			// If there are changes, send the changes to neighbors
-  //      			// using U-messages (known as a Triggered Update)
-
-  //      			// Print an output message
-
-  //      			// Send datagram updates to neighbors using U messages 
-  //      			// 		- Router update messages: U dest cost 
-  //      			// 		- Link cost message: L neighbor cost 
-  //      			// Do I just create TCP/IP sockets like in Project 1 to send them? 
-  //      			// Use createSockets to construct connected datagram sockets
-		// 		// for talking to neighbors 
-
-
-
-		// 		printf("\n%d.", i + 1); 
-		// 		printf("\nNeighbor: %s", neighbor->neighbor); 
-		// 		printf("\nSocket: %d", neighbor->socket); 
-		// 		printf("\n"); 
-
-				
-
-				
-		    
-		// }
-
-		// printf("\nFinished updating!"); 
-
-
-		// Send your data to your neighbors 
-		// Each router must send its entire routing table to its neighbors every 30 seconds 
 	}
 
 
