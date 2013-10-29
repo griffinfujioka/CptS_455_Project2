@@ -8,6 +8,56 @@
 
 static const int MAXPENDING = 5;                 // Maximum outstanding connection requests 
 
+// Given a neighboring router's name, look up and return that router's 
+// (neighbor, socket) combination 
+neighborSocket* GetNeighborSocket(char* name)
+{
+	int i = 0; 
+
+	neighborSocket* neighbor; 
+
+	for(i = 0; i < MAXLINKS; i++)
+	{
+		neighbor = &neighborSocketArray[i]; 
+
+		if(neighbor->neighbor == 0)
+			continue; 
+
+		printf("\nComparing %s and %s", neighbor->neighbor, name); 
+		
+		if(strncmp(neighbor->neighbor, name, 1) == 0)
+		{
+			return &neighborSocketArray[i]; 
+		}
+	}
+
+	return 0; 
+}
+
+// Given a router's name, look up and return that router's configuration
+routerInfo* GetRouterInfo(char* router)
+{
+	int i = 0; 
+
+	routerInfo* tmpRouter = &routerInfoTable[i]; 
+
+	for(i=0; i< MAXROUTERS; i++)
+	{
+		tmpRouter = &routerInfoTable[i]; 
+
+		if(tmpRouter->baseport == 0)
+			continue; 
+
+		if(strncmp(tmpRouter->router, router, 1) == 0)
+		{
+			return &routerInfoTable[i]; 
+		}
+
+
+	}
+
+}
+
 void SendUpdatesToNeighbors()
 {
 
@@ -26,6 +76,9 @@ int main(int argc, char* argv[])
 	fd_set rfds;			// a set of file descriptors 
     struct timeval tv;		// timeout boundary 
     int retval;
+    struct sockaddr_in neighborAddr;                 // neighboring router
+    int neighborSock; 			// socket for neighboring router 
+    socklen_t neighborAddrLength = sizeof(neighborAddr);	// Set length of client address structure (in-out parameter)
 
 	char messageBuffer[1024]; 
 
@@ -189,16 +242,49 @@ int main(int argc, char* argv[])
        	// 		- recv some messages  
         for(i=0; i< MAXROUTERS; i++)		// count = number of neighbor routers with connections 
 		{
-			// How do I get the router's IP address? 
-			// neighborSocket* neighbor = &neighborSocketArray[i]; 
-
-			// if(neighbor->neighbor == 0)
-			// 	continue; 
-
 			linkInfo* routerLink = &linkInfoTable[i]; 
 
+			// Check to see if the router deserves an update 
 			if(routerLink->router == 0)
 				continue; 
+
+			// Need neighborSocket for socket # 
+			neighborSocket* neighbor = GetNeighborSocket(routerLink->router); 
+
+			if(neighbor->neighbor == 0)
+				continue; 
+			else
+			{
+				printf("\nNeighbor: %s", neighbor->neighbor); 
+				printf("\nSocket: %d", neighbor->socket); 
+				neighborSock = neighbor->socket; 
+
+				printf("\nneighborSock: %d", neighborSock); 
+			}
+
+			// Need routerInfo for baseport 
+			routerInfo* router = GetRouterInfo(neighbor->neighbor); 
+
+
+			// Setup the neighborAddr 
+			memset(&neighborAddr, 0, sizeof(neighborAddr));                 			// zero out structure 
+		    neighborAddr.sin_family = AF_INET;                                      // IPV4 address family 
+		    neighborAddr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
+		    neighborAddr.sin_port = htons(router->baseport);                
+
+		    printf("\nneighborSock: %d", neighborSock);
+		    printf("\nneighborAddr.sin_port: %d", neighborAddr.sin_port); 
+		    printf("\nneighborAddrLength: %d", neighborAddrLength); 
+			// connect() to the router 
+			if(connect(neighborSock, (struct sockaddr*) &neighborAddr, neighborAddrLength) < 0)
+			{
+				DieWithSystemMessage("connect() failed"); 
+			}
+			else
+			{
+				printf("\nSuccessfully connected to neighbor %s", routerLink->router); 
+				printf("\nNeighboring router %s has address %s", routerLink->router, neighborAddr.sin_addr.s_addr); 
+			}
 
 			// Put the table entries into the message buffer 
 			char* dest = routerLink->router; 
@@ -212,14 +298,15 @@ int main(int argc, char* argv[])
 			// for each of the connections, receive: 
 			// 		- Router update messages: U dest cost 
 			// 		- Link cost messages: L neighbor cost 
-			//numBytes = recv(neighbor->socket, messageBuffer, sizeof(messageBuffer), 0);
+			printf("\nAttempting to send an update message...");
+            numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
 
-			// if(numBytes < 0)
-   //              DieWithSystemMessage("recv() failed"); 
-   //          else if(numBytes == 0)
-   //              DieWithUserMessage("recv()", "connection closed prematurely"); 
+            if(numBytes < 0)
+                DieWithSystemMessage("send() failed\n"); 
+        	else if(numBytes != sizeof(messageBuffer))
+                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
 
-            printf("\nSuccessfully sent update message %s to %s", messageBuffer, dest); 
+            printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
 
 		}
        
