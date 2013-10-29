@@ -24,9 +24,6 @@ neighborSocket* GetNeighborSocket(char* name)
 
 		if(neighbor->neighbor == 0)
 			continue; 
-
-		if(DEBUG)
-			printf("\nComparing %s and %s", neighbor->neighbor, name); 
 		
 		if(strncmp(neighbor->neighbor, name, 1) == 0)
 		{
@@ -59,6 +56,23 @@ routerInfo* GetRouterInfo(char* router)
 
 	}
 
+}
+
+void CloseAllSockets()
+{
+	int i = 0; 
+	while(i < MAXPAIRS)
+	{
+		neighborSocket* neighbor = &neighborSocketArray[i]; 
+
+		if(neighbor->neighbor == 0)
+			break; 
+
+		close(neighbor->socket); 
+
+
+		i++; 
+	}
 }
 
 
@@ -118,6 +132,10 @@ int main(int argc, char* argv[])
 
 	// Create connected datagram sockets for talking to neighbors
 	// and provide us an array of (neighbor, socket) pairs
+	// createConnections takes care of 
+	// 		(1) socket
+	// 		(2) bind
+	// 		(3) connect 
 	neighbors = createConnections(router); 
 
 	if(DEBUG)
@@ -227,6 +245,15 @@ int main(int argc, char* argv[])
 
 	for(;;)			// Run forever 
 	{
+		// Recycle these variables?
+		routerConfiguration = &routerInfoTable[0]; 
+		routerLinks = &linkInfoTable[0]; 
+
+		// zero out the buffer, start from scratch 
+		// memset(&neighborSocketArray, 0, sizeof(neighborSocketArray)); 
+		// neighbors = createConnections(router); 
+
+
 		printf("\n--\n--"); 
 		printf("\nWaiting for updates from fellow routers in my network..."); 
 
@@ -237,8 +264,6 @@ int main(int argc, char* argv[])
    		tv.tv_sec = 5;
        	tv.tv_usec = 0;
 
-		// Check which routers have updates for you, 
-	   	// I.e., their sockets contain data 
 	   	retval = select(receivingSocket, &rfds, NULL, NULL, &tv);
 
        	if(retval == -1)
@@ -248,17 +273,45 @@ int main(int argc, char* argv[])
        	else if(retval)
        		printf("\nData is available now from %d socket(s).", retval); 
 
-       	for(i=0; i < MAXROUTERS; i++)
-       	{
-       		if(FD_ISSET(i, &rfds))
-       		{
-       			if(DEBUG)
-       			{
-       				printf("\nSocket #%d got somethin' to say!", i); 
+       	// Look through the existing connections to see if any of the 
+       	// sockets have data 
+    //    	for(i=0; i < MAXROUTERS; i++)
+    //    	{
+    //    		printf("\n%d", i); 
+    //    		if(FD_ISSET(i, &rfds))
+    //    		{
+    //    			if(DEBUG)
+    //    			{
+    //    				printf("\nSocket #%d got somethin' to say!", i); 
+    //    			}
 
-       			}
-       		}
-       	}
+   	// 			neighborAddrLength = sizeof(neighborAddr); 
+
+   	// 			if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
+				// {
+				// 	printf("\naccept failed()"); 
+				// }
+				// else
+				// {
+				// 	if(DEBUG)
+				// 	{
+				// 		printf("\nSuccessfully accepted neighborSock"); 
+				// 	}
+				// }
+    //    		}
+    //    	}
+
+  //      	if((neighborSock = accept(receivingSocket, (struct sockaddr *)&neighborAddr, &neighborAddrLength)) < 0)
+		// {
+		// 	printf("\naccept failed()"); 
+		// }
+		// else
+		// {
+		// 	if(DEBUG)
+		// 	{
+		// 		printf("\nSuccessfully accepted neighborSock"); 
+		// 	}
+		// }
 
 
        	i = 0; 
@@ -273,6 +326,7 @@ int main(int argc, char* argv[])
 			if(routerLink->router == 0)
 				continue; 
 
+			printf("\a"); 
 			// Need neighborSocket for socket # 
 			neighborSocket* neighbor = GetNeighborSocket(routerLink->router); 
 
@@ -305,20 +359,7 @@ int main(int argc, char* argv[])
 		    printf("\nneighborSock: %d", neighborSock);
 		    printf("\nneighborAddr.sin_port: %d", neighborAddr.sin_port); 
 		    printf("\nneighborAddrLength: %d", neighborAddrLength); 
-		    
-			// connect() to the router 
-			if(connect(neighborSock, (struct sockaddr*) &neighborAddr, neighborAddrLength) < 0)
-			{
-				//DieWithSystemMessage("connect() failed"); 
-				close(neighborSock); 
-				neighborSock = -1; 
-				printf("\nconnect() failed"); 
-			}
-			else
-			{
-				printf("\nSuccessfully connected to neighbor %s", routerLink->router); 
-				printf("\nNeighboring router %s has address %d", routerLink->router, neighborAddr.sin_addr.s_addr); 
-			}
+
 
 			// Put the table entries into the message buffer 
 			char* dest = routerLink->router; 
@@ -332,22 +373,19 @@ int main(int argc, char* argv[])
 			// for each of the connections, receive: 
 			// 		- Router update messages: U dest cost 
 			// 		- Link cost messages: L neighbor cost 
-			if(neighborSock != -1)
-			{
-				// If neighborSock = -1 then connect() failed above 
-				printf("\nAttempting to send an update message...");
-				numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
+			// If neighborSock = -1 then connect() failed above 
+			printf("\nAttempting to send an update message...");
+			numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
 
-	            if(numBytes < 0)
-	                DieWithSystemMessage("send() failed\n"); 
-	        	else if(numBytes != sizeof(messageBuffer))
-	                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+            if(numBytes < 0)
+                DieWithSystemMessage("send() failed\n"); 
+        	else if(numBytes != sizeof(messageBuffer))
+                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
 
-	            printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
-			}
+            printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
             
 
-            close(neighborSock); 
+            //CloseAllSockets(); 
 
             if(DEBUG)
             	printf("\nClosed socket #%d (Router %s)\n", neighborSock, dest); 
