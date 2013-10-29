@@ -22,6 +22,10 @@ int main(int argc, char* argv[])
 	routerInfo* tmp;
 	neighborSocket* neighbors; 
 	ssize_t numBytes = 0; 
+	in_port_t receivingPort; 
+	fd_set rfds;			// a set of file descriptors 
+    struct timeval tv;		// timeout boundary 
+    int retval;
 
 	char messageBuffer[1024]; 
 
@@ -56,10 +60,9 @@ int main(int argc, char* argv[])
 
 	// Create connected datagram sockets for talking to neighbors
 	// and provide us an array of (neighbor, socket) pairs
-
-
-
 	neighbors = createConnections(router); 
+
+	printf("\nSuccessfully constructed datagram sockets for each of my %d neighbors...", count); 
 
 	printf("\nRouters in the system: ");
 
@@ -75,6 +78,14 @@ int main(int argc, char* argv[])
 		printf("\nHost: %s", routerConfiguration->host); 
 		printf("\nBase port: %d", routerConfiguration->baseport); 
 		printf("\n"); 
+
+		// This is kind of a hacky way to find my baseport but it works... 
+		if(strncmp(routerConfiguration->router, router, 1) == 0)
+		{
+			// Set our baseport so we can bind a socket to it later 
+			printf("\nSet my baseport to %d\n", routerConfiguration->baseport); 
+		}
+		
 		i++; 
 	}
 
@@ -113,138 +124,149 @@ int main(int argc, char* argv[])
 
 
 		i++; 
-
 	}
+
+	// Setup the receiving socket. Bind it to the local baseport
+	// to receive L and P messages (but not U messages) 
+   	// Create socket for incoming connections 
+    int receivingSocket;                 // Socket descriptor 
+
+    if((receivingSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+        DieWithSystemMessage("socket() failed"); 
+
+   	// Construct local address structure 
+    struct sockaddr_in myAddr;                                         // local address
+    memset(&myAddr, 0, sizeof(myAddr));                 			// zero out structure 
+    myAddr.sin_family = AF_INET;                                      // IPV4 address family 
+    myAddr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
+    myAddr.sin_port = htons(receivingPort);                         // local port 
+
+    // Bind to the local address 
+    if(bind(receivingSocket, (struct sockaddr*) &myAddr, sizeof(myAddr)) < 0)
+        DieWithSystemMessage("bind() failed"); 
+
+    printf("\nSuccessfully bound to local address..."); 
+
+    // Mark the socket so it will list for incoming connections 
+    if(listen(receivingSocket, MAXPENDING) < 0)
+        DieWithSystemMessage("listen() failed"); 
+
+    printf("\nSuccessfully marked socket for listening..."); 
+
+
+    
+
 
 
 	for(;;)			// Run forever 
 	{
 		printf("\nWaiting for updates from fellow routers in my network..."); 
 
-		fd_set rfds;			// a set of file descriptors 
-        struct timeval tv;		// timeout boundary 
-        int retval;
+		
 
         FD_ZERO(&rfds);			// clear the set 
         FD_SET(0, &rfds);		// add a file descriptor to the set 
 
-       /* Wait up to 30 seconds. */
-       tv.tv_sec = 5;
-       tv.tv_usec = 0;
+   		/* Wait up to 30 seconds. */
+   		tv.tv_sec = 5;
+       	tv.tv_usec = 0;
 
-       // Check which routers have updates for you, 
-       // I.e., their sockets contain data 
-       retval = select(1, &rfds, NULL, NULL, &tv);
+		// Check which routers have updates for you, 
+	   	// I.e., their sockets contain data 
+	   	retval = select(1, &rfds, NULL, NULL, &tv);
 
-       if(retval == -1)
-       	printf("\nNone of my neighbors have updates for me..."); 
-       else if(retval)
-       	printf("\nData is available now from %d socket(s).", retval); 
-
-       // Setup sockets 
-
-       	in_port_t servPort = 5000; 
-
-       	// Create socket for incoming connections 
-        int receivingSocket;                 // Socket descriptor 
-
-        if((receivingSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-            DieWithSystemMessage("socket() failed"); 
-
-       	// Construct local address structure 
-        struct sockaddr_in myAddr;                                         // local address
-        memset(&myAddr, 0, sizeof(myAddr));                 			// zero out structure 
-        myAddr.sin_family = AF_INET;                                      // IPV4 address family 
-        myAddr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
-        myAddr.sin_port = htons(servPort);                         // local port 
-
-        // Bind to the local address 
-        if(bind(receivingSocket, (struct sockaddr*) &myAddr, sizeof(myAddr)) < 0)
-            DieWithSystemMessage("bind() failed"); 
-
-        // Mark the socket so it will list for incoming connections 
-        if(listen(receivingSocket, MAXPENDING) < 0)
-            DieWithSystemMessage("listen() failed"); 
+       	if(retval == -1)
+       		printf("\nselect() error"); 
+       	else if(retval == 0)
+       		printf("\nNone of my neighbors have updates for me..."); 
+       	else if(retval)
+       		printf("\nData is available now from %d socket(s).", retval); 
 
 
-        neighborSocket* neighbor = createConnections(router); 
+       	i = 0; 
        
-        for(i=0; i< count; i++)		// count = number of neighbor routers with connections 
+       	// for each of my neighboring connections
+       	// 		- recv some messages  
+        for(i=0; i< MAXROUTERS; i++)		// count = number of neighbor routers with connections 
 		{
 			// How do I get the router's IP address? 
-			neighborSocket* neighbor = &neighborSocketArray[i]; 
-			routerLinks = &linkInfoTable[i]; 
+			// neighborSocket* neighbor = &neighborSocketArray[i]; 
+
+			// if(neighbor->neighbor == 0)
+			// 	continue; 
+
+			linkInfo* routerLink = &linkInfoTable[i]; 
+
+			if(routerLink->router == 0)
+				continue; 
 
 			// Put the table entries into the message buffer 
-			char* dest = neighbor->neighbor; 
-			int cost = routerLinks->cost; 
+			char* dest = routerLink->router; 
+			int cost = routerLink->cost;
 
 			memset(&messageBuffer, 0, sizeof(messageBuffer)); 
 
-			messageBuffer[0] = 'U'; 
-			messageBuffer[1] = ' '; 
-			messageBuffer[2] = dest[0]; 
-			messageBuffer[3] = cost; 
-			messageBuffer[4] = '\0'; 
+			snprintf( messageBuffer, sizeof(messageBuffer), "U %C %d", dest[0], cost);
+
 
 			// for each of the connections, receive: 
 			// 		- Router update messages: U dest cost 
 			// 		- Link cost messages: L neighbor cost 
-			numBytes = recv(neighbor->socket, messageBuffer, sizeof(messageBuffer), 0);
+			//numBytes = recv(neighbor->socket, messageBuffer, sizeof(messageBuffer), 0);
 
-			if(numBytes < 0)
-                DieWithSystemMessage("recv() failed"); 
-            else if(numBytes == 0)
-                DieWithUserMessage("recv()", "connection closed prematurely"); 
+			// if(numBytes < 0)
+   //              DieWithSystemMessage("recv() failed"); 
+   //          else if(numBytes == 0)
+   //              DieWithUserMessage("recv()", "connection closed prematurely"); 
 
             printf("\nSuccessfully sent update message %s to %s", messageBuffer, dest); 
 
 		}
        
 
-       int i = 0; 
+  //      int i = 0; 
 
-       for(i = 0; i < MAXPAIRS; i++)
-       {
-       			neighborSocket* neighbor = &neighborSocketArray[i]; 
+  //      for(i = 0; i < MAXPAIRS; i++)
+  //      {
+  //      			neighborSocket* neighbor = &neighborSocketArray[i]; 
 
-       			if(neighbor->neighbor == 0)
-					break; 
+  //      			if(neighbor->neighbor == 0)
+		// 			break; 
 
-				// connect() 
+		// 		// connect() 
 
-       			// Receive datagrams in the format of: 
-       			// 		- Router update messages: U dest cost
-       			// 		- Link cost messages: L neighbor cost 
-
-
-       			// Make appropriate changes to the routing table
-       			// If there are changes, send the changes to neighbors
-       			// using U-messages (known as a Triggered Update)
-
-       			// Print an output message
-
-       			// Send datagram updates to neighbors using U messages 
-       			// 		- Router update messages: U dest cost 
-       			// 		- Link cost message: L neighbor cost 
-       			// Do I just create TCP/IP sockets like in Project 1 to send them? 
-       			// Use createSockets to construct connected datagram sockets
-				// for talking to neighbors 
+  //      			// Receive datagrams in the format of: 
+  //      			// 		- Router update messages: U dest cost
+  //      			// 		- Link cost messages: L neighbor cost 
 
 
+  //      			// Make appropriate changes to the routing table
+  //      			// If there are changes, send the changes to neighbors
+  //      			// using U-messages (known as a Triggered Update)
 
-				printf("\n%d.", i + 1); 
-				printf("\nNeighbor: %s", neighbor->neighbor); 
-				printf("\nSocket: %d", neighbor->socket); 
-				printf("\n"); 
+  //      			// Print an output message
+
+  //      			// Send datagram updates to neighbors using U messages 
+  //      			// 		- Router update messages: U dest cost 
+  //      			// 		- Link cost message: L neighbor cost 
+  //      			// Do I just create TCP/IP sockets like in Project 1 to send them? 
+  //      			// Use createSockets to construct connected datagram sockets
+		// 		// for talking to neighbors 
+
+
+
+		// 		printf("\n%d.", i + 1); 
+		// 		printf("\nNeighbor: %s", neighbor->neighbor); 
+		// 		printf("\nSocket: %d", neighbor->socket); 
+		// 		printf("\n"); 
 
 				
 
 				
 		    
-		}
+		// }
 
-		printf("\nFinished updating!"); 
+		// printf("\nFinished updating!"); 
 
 
 		// Send your data to your neighbors 
