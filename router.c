@@ -426,34 +426,35 @@ int main(int argc, char* argv[])
 	            }
 
 	            printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, i, messageBuffer); 
-        	}
         	
-        	/* Wait up to 30 seconds. */
-	   		tv.tv_sec = 20;
-	       	tv.tv_usec = 0;
 
-	       	if(DEBUG)
-	       	{
-	       		printf("\nselect() will wait for %zu seconds", tv.tv_sec); 
-	       		printf("\nWaiting on select()...");
-	       	}
-	       		
+	        	/* Wait up to 30 seconds. */
+		   		tv.tv_sec = 20;
+		       	tv.tv_usec = 0;
+
+		       	if(DEBUG)
+		       	{
+		       		printf("\nselect() will wait for %zu seconds", tv.tv_sec); 
+		       		printf("\nWaiting on select()...");
+		       	}
+		       		
 
 
-		   	retval = select(MAX_DESCRIPTOR + 1, &rfds, NULL, NULL, &tv);
+			   	retval = select(MAX_DESCRIPTOR + 1, &rfds, NULL, NULL, &tv);
 
-	       	if(retval < 0)
-	       	{
-	       		printf("select() failed"); 
-	       		continue; 		// exit the loop 
-	       	}
-	       	else if(retval == 0)
-	       	{
-	       		printf("select() timed out"); 
-	       		continue; 		// exit the loop 
-	       	}
-	       	else if(retval)
-	       		printf("Data is available now from %d socket(s).", retval);
+		       	if(retval < 0)
+		       	{
+		       		printf("select() failed"); 
+		       		continue; 		// exit the loop 
+		       	}
+		       	else if(retval == 0)
+		       	{
+		       		printf("select() timed out"); 
+		       		continue; 		// exit the loop 
+		       	}
+		       	else if(retval)
+		       		printf("Data is available now from %d socket(s).", retval);
+	       }
 
         	
         	
@@ -539,11 +540,13 @@ int main(int argc, char* argv[])
    				if(numBytes < 0)
    				{
    					printf("\nrecv() failed from socket #%d", servSock[i]); 
+   					break;
    					 
    				}
    				else if(numBytes == 0)
    				{
    					printf("\nrecv()", "connection closed prematurely"); 
+   					break;
    				}
 
    				char* tempName = GetRouterName(servSock[i]); 
