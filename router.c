@@ -2,7 +2,9 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
+#include <errno.h>
 #include "readrouters.c"
 #include "DieWithMessage.c"
 
@@ -97,6 +99,8 @@ int main(int argc, char* argv[])
     struct sockaddr_in neighborAddr;    // buffer for addresses neighboring router
     int neighborSock; 					// socket for neighboring router 
     socklen_t neighborAddrLength = sizeof(neighborAddr);	// Set length of client address structure (in-out parameter)
+
+    int on = 1; 
    
 
 	int i = 0; 
@@ -150,12 +154,56 @@ int main(int argc, char* argv[])
 	/****************************************************************/ 
 	neighbors = createConnections(router); 
 
+	// Do we need to setup the receiving socket? 
+	// Setup the receiving socket. Bind it to the local baseport
+	// to receive L and P messages (but not U messages) 
+	// That means we have to: 
+	// 		(1) socket() to create the socket 
+	// 		(2) bind() the socket to a local address
+	// 		(3) listen() for connections 
+	// 		(4) accept() a connection 
+
+	/********************************************/ 
+   	/* Create socket for incoming connections 	*/ 
+   	/********************************************/ 
+   	if((receivingSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        DieWithSystemMessage("socket() failed"); 
+
+    if(DEBUG)
+    	printf("\nCreated socket %d for receiving...", receivingSocket); 
+
+   	/********************************************/ 
+   	/* Set socket to be non-blocking		 	*/ 
+   	/********************************************/ 
+	if(retval = ioctl(receivingSocket, FIONBIO, (char *)&on) < 0)
+		DieWithSystemMessage("ioctl() failed"); 
+
+    struct sockaddr_in servAddr;                                         // local address
+    memset(&servAddr, 0, sizeof(servAddr));                 // zero out structure 
+    servAddr.sin_family = AF_INET;                                        // IPV4 address family 
+    servAddr.sin_addr.s_addr = htonl(INADDR_ANY);         // any incoming interface 
+    servAddr.sin_port = htons(receivingPort);   
+
+    /********************************************/ 
+   	/* Bind to the local address 			 	*/ 
+   	/********************************************/ 
+    if(bind(receivingSocket, (struct sockaddr*) &servAddr, sizeof(servAddr)) < 0)
+        DieWithSystemMessage("bind() failed"); 
+
+    /********************************************/ 
+   	/* Mark the socket so it will listen for 	*/ 
+   	/* incoming connections 				 	*/ 
+   	/********************************************/ 
+    if(listen(receivingSocket, MAXROUTERS) < 0)
+        DieWithSystemMessage("listen() failed");  
+
 	/************************************/ 
 	/* 	Initialize the master fd_set 	*/ 
 	/************************************/ 
 	FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
-	FD_ZERO(&rfds);					// clear the temp file descriptor set  
-	FD_SET(0, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
+	MAX_DESCRIPTOR = receivingSocket;
+	// Without the line below, select() fails... 
+	FD_SET(receivingSocket, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
 
 
 	if(DEBUG)
@@ -184,6 +232,7 @@ int main(int argc, char* argv[])
 		// This is kind of a hacky way to find my baseport but it works... 
 		if(strncmp(routerConfiguration->router, router, 1) == 0)
 		{
+			receivingPort = routerConfiguration->baseport;
 			if(DEBUG)
 			{
 				// Set our baseport so we can bind a socket to it later 
@@ -245,7 +294,7 @@ int main(int argc, char* argv[])
 		/**********************************************/ 
 		servSock[neighbors->socket] = neighbors->socket; 
 		FD_SET(neighbors->socket, &masterFD_Set); 	// add the socket file descriptor to the master FD set
-		MAX_DESCRIPTOR = neighbors->socket; 
+		//MAX_DESCRIPTOR = neighbors->socket; 
 		
 
 		if(DEBUG)
@@ -274,17 +323,6 @@ int main(int argc, char* argv[])
 	}
 
 
-	
-	// Do we need to setup the receiving socket? 
-	// Setup the receiving socket. Bind it to the local baseport
-	// to receive L and P messages (but not U messages) 
-	// That means we have to: 
-	// 		(1) socket() to create the socket 
-	// 		(2) bind() the socket to a local address
-	// 		(3) listen() for connections 
-	// 		(4) accept() a connection 
-   	// Create socket for incoming connections 
-
 
 
 	for(;;)			// Run forever 
@@ -301,16 +339,30 @@ int main(int argc, char* argv[])
 		/*************************************************/ 
         /* Copy the masterFD_Set over to the temp FD set */ 
         /*************************************************/
-        FD_ZERO(&rfds);			// clear the temp file descriptor set  
+        FD_ZERO(&rfds);			// clear the temp file descriptor set 
+        memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set));  
 
         for(i=0; i < MAX_DESCRIPTOR + 1; i++)
         {
         	if(servSock[i] != 0)
         	{
-        		FD_SET(servSock[i], &rfds); 
+        		// FD_SET(servSock[i], &rfds); 
 
-        		if(DEBUG)
-        			printf("\nAdded FD #%d to temporary file descriptor set", servSock[i]); 
+        		// if(DEBUG)
+        		// 	printf("\nAdded FD #%d to temporary file descriptor set", servSock[i]); 
+
+        		strncpy(messageBuffer, "Test message", sizeof(messageBuffer));
+        		/********************************************************/ 
+       			/* Send an update message to this router via its socket	*/  
+       			/********************************************************/ 
+       			numBytes = send(i, messageBuffer, sizeof(messageBuffer), 0); 
+
+	            if(numBytes < 0)
+	                DieWithSystemMessage("send() failed"); 
+	        	else if(numBytes != sizeof(messageBuffer))
+	                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+
+	            printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, i, messageBuffer); 
         	}
         	
         }
@@ -347,7 +399,10 @@ int main(int argc, char* argv[])
        	for(i=0; i <= MAX_DESCRIPTOR && readyDescriptors > 0; ++i)
        	{
        		if(DEBUG)
+       		{
        			printf("\nChecking to see if FD %d has data for us", i); 
+       		}
+       			
        		/****************************************************/ 
        		/* Check to see if this descriptor is ready 			*/ 
        		/****************************************************/ 
@@ -355,8 +410,11 @@ int main(int argc, char* argv[])
        		{
        			if(DEBUG)
        			{
-       				printf("\nFD #%d has data for us!", i); 
+       				printf("\nFD #%d has data for us! servSock[%d] = %d", i, i, servSock[i]); 
        			}
+
+       			if(servSock[i] == 0)
+       				break; 
        			/****************************************************/ 
        			/* A descriptor was found that has data for us 		*/
        			/* One less has to be looked for, so we decrement 	*/
@@ -364,11 +422,51 @@ int main(int argc, char* argv[])
        			/****************************************************/ 
        			readyDescriptors--; 
 
+       			/*************************************************/
+               /* Accept all incoming connections that are      */
+               /* queued up on the listening socket before we   */
+               /* loop back and call select again.              */
+               /*************************************************/
+               do
+               {
+                  /**********************************************/
+                  /* Accept each incoming connection.  If       */
+                  /* accept fails with EWOULDBLOCK, then we     */
+                  /* have accepted all of them.  Any other      */
+                  /* failure on accept will cause us to end the */
+                  /* server.                                    */
+                  /**********************************************/
+                  if(neighborSock = accept(receivingSocket, (struct sockaddr*) &neighborAddr, sizeof(neighborAddr)) < 0)
+                  {
+                  	if (errno != EWOULDBLOCK)
+                     {
+                        perror("  accept() failed");
+                     }
+                     break;
+                  }
+
+                  /**********************************************/
+                  /* Add the new incoming connection to the     */
+                  /* master read set                            */
+                  /**********************************************/
+                  printf("  New incoming connection - %d\n", neighborSock);
+                  FD_SET(neighborSock, &masterFD_Set);
+                  if (neighborSock > MAX_DESCRIPTOR)
+                     MAX_DESCRIPTOR = neighborSock;
+
+                  /**********************************************/
+                  /* Loop back up and accept another incoming   */
+                  /* connection                                 */
+                  /**********************************************/
+               } while (neighborSock != -1);
+
+               printf("\nAccepted connection from neighbor socket #%d", neighborSock); 
+
        			/****************************************************/ 
        			/* Receive all incoming data from this socket 		*/
        			/* before we loop back and call select() again 		*/    
        			/****************************************************/ 
-       			numBytes = recv(i, messageBuffer, sizeof(messageBuffer), 0); 
+       			numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0); 
 
        			if(numBytes < 0)
                     DieWithSystemMessage("recv() failed\n"); 
