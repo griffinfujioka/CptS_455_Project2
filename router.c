@@ -10,6 +10,8 @@ static const int MAXPENDING = 5;                 // Maximum outstanding connecti
 
 static const int DEBUG = 1; 
 
+static int MAX_DESCRIPTORS = 0; 
+
 static int connectedNeighborSocket[MAXPAIRS]; 
 
 // Given a neighboring router's name, look up and return that router's 
@@ -64,21 +66,23 @@ routerInfo* GetRouterInfo(char* router)
 int main(int argc, char* argv[])
 {
 	char* directory; 					// directory to look for input files 
-	char* router;						// name of this router 
+	char* router;						// name of this router instance 
 	routerInfo* routerConfiguration; 	// name, host, baseport 
 	linkInfo* routerLinks; 				// name, cost, local links, remote links		
 	neighborSocket* neighbors; 			// name, socket 
 	ssize_t numBytes = 0; 
 	in_port_t receivingPort; 			// port for receiving messages 
 	int receivingSocket;                 // Socket descriptor 
-	fd_set rfds;						// set of file descriptors for select()
+	fd_set rfds;						// temp set of file descriptors for select()
 	/* master file descriptor set - will be shadow copied into rfds on each iteration */ 
 	fd_set masterFD_Set; 	
     struct timeval tv;					// timeout boundary 
     int retval;							// return value of select()
+    int readyDescriptors = 0; 			// number of descriptors with available data 
     struct sockaddr_in neighborAddr;    // buffer for addresses neighboring router
     int neighborSock; 					// socket for neighboring router 
     socklen_t neighborAddrLength = sizeof(neighborAddr);	// Set length of client address structure (in-out parameter)
+    int servSock[MAXROUTERS]; 			// Data structure containing all of the file descriptors 
 
 	char messageBuffer[1024]; 
 
@@ -126,6 +130,13 @@ int main(int argc, char* argv[])
 	// Which means we need to take care of: 
 	// 		(1) send/recv
 	neighbors = createConnections(router); 
+
+	/************************************/ 
+	/* 	Initialize the master fd_set 	*/ 
+	/************************************/ 
+	FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
+	FD_ZERO(&rfds);					// clear the temp file descriptor set  
+	FD_SET(0, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
 
 	if(DEBUG)
 	{
@@ -181,9 +192,10 @@ int main(int argc, char* argv[])
 
 		}
 
-		FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
-		FD_ZERO(&rfds);					// clear the temp file descriptor set  
-		FD_SET(0, &masterFD_Set); 		// add file descriptor for keyboard 
+		
+		/**********************************************/ 
+		/* Fill the servSock[] array with the sockets */ 
+		/**********************************************/ 
 
 		printf("\nNeighbor sockets: "); 
 		i = 0; 
@@ -204,6 +216,8 @@ int main(int argc, char* argv[])
 			// add the socket file descriptor to the master FD set
 			FD_SET(neighbors->socket, &masterFD_Set); 	
 			printf("\nAdded socket %d to master file descriptor set", neighbors->socket); 
+			MAX_DESCRIPTORS++; 
+			printf("\nIncremented MAX_DESCRIPTORS to %d", MAX_DESCRIPTORS); 
 
 			
 
@@ -215,6 +229,8 @@ int main(int argc, char* argv[])
 			i++; 
 		}
 	}
+
+	
 
 	// Setup the receiving socket. Bind it to the local baseport
 	// to receive L and P messages (but not U messages) 
@@ -241,22 +257,93 @@ int main(int argc, char* argv[])
 		printf("\n--\n--"); 
 		printf("\nWaiting for updates from fellow routers in my network..."); 
 
-        FD_ZERO(&rfds);			// clear the file descriptor set  
-        rfds = masterFD_Set; 
+        FD_ZERO(&rfds);			// clear the temp file descriptor set  
+        /*************************************************/ 
+        /* Copy the masterFD_Set over to the temp FD set */ 
+        /*************************************************/ 
+        memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set)); 
 
 
    		/* Wait up to 30 seconds. */
    		tv.tv_sec = 5;
        	tv.tv_usec = 0;
 
-	   	retval = select(receivingSocket, &rfds, NULL, NULL, &tv);
+       	if(DEBUG)
+       		printf("\nWaiting on select()..."); 
+	   	retval = select(MAX_DESCRIPTORS+1, &rfds, NULL, NULL, &tv);
 
-       	if(retval == -1)
-       		printf("\nselect() error"); 
+       	if(retval < 0)
+       	{
+       		printf("select() failed"); 
+       		continue; 		// exit the loop 
+       	}
        	else if(retval == 0)
-       		printf("\nNone of my neighbors have updates for me..."); 
+       	{
+       		printf("select() timed out"); 
+       		continue; 		// exit the loop 
+       	}
        	else if(retval)
-       		printf("\nData is available now from %d socket(s).", retval); 
+       		printf("Data is available now from %d socket(s).", retval);
+
+       	/****************************************************/ 
+       	/* One or more of the descriptors have data for us 	*/ 
+       	/* We must determine which ones they are. 			*/ 
+       	/****************************************************/ 
+
+       	readyDescriptors = retval; 
+       	for(i=0; i <= MAX_DESCRIPTORS && readyDescriptors > 0; ++i)
+       	{
+       		if(DEBUG)
+       			printf("\nChecking to see if FD %d has data for us", i); 
+       		/****************************************************/ 
+       		/* Check to see if this descriptor is ready 			*/ 
+       		/****************************************************/ 
+       		if(FD_ISSET(i, &rfds))
+       		{
+       			if(DEBUG)
+       			{
+       				printf("\nFD #%d has data for us!", i); 
+       			}
+       			/****************************************************/ 
+       			/* A descriptor was found that has data for us 		*/
+       			/* One less has to be looked for, so we decrement 	*/
+       			/* the readyDescriptors variable 					*/   
+       			/****************************************************/ 
+       			readyDescriptors--; 
+
+       			/****************************************************/ 
+       			/* Receive all incoming data from this socket 		*/
+       			/* before we loop back and call select() again 		*/    
+       			/****************************************************/ 
+       			numBytes = recv(i, messageBuffer, sizeof(messageBuffer), 0); 
+
+       			if(numBytes < 0)
+                    DieWithSystemMessage("recv() failed\n"); 
+                else if(numBytes == 0)
+                    DieWithUserMessage("recv()", "connection closed prematurely\n"); 
+
+                if(DEBUG)
+                	printf("\nReceived %zu bytes from socket #%d", numBytes, i);
+
+                /****************************************************/ 
+       			/* Process the received updates 					*/    
+       			/****************************************************/ 
+
+       			/********************************************************/ 
+       			/* Send an update message to this router via its socket	*/  
+       			/********************************************************/ 
+       			numBytes = send(i, messageBuffer, sizeof(messageBuffer), 0); 
+
+	            if(numBytes < 0)
+	                DieWithSystemMessage("send() failed"); 
+	        	else if(numBytes != sizeof(messageBuffer))
+	                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+
+	            printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, i, messageBuffer); 
+
+       		}
+       		
+       	}
 
 
        	i = 0; 
@@ -320,14 +407,14 @@ int main(int argc, char* argv[])
 			// 		- Link cost messages: L neighbor cost 
 			// If neighborSock = -1 then connect() failed above 
 			printf("\nAttempting to send an update message...");
-			numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
+			// numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
 
-            if(numBytes < 0)
-                DieWithSystemMessage("send() failed"); 
-        	else if(numBytes != sizeof(messageBuffer))
-                DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+   //          if(numBytes < 0)
+   //              DieWithSystemMessage("send() failed"); 
+   //      	else if(numBytes != sizeof(messageBuffer))
+   //              DieWithUserMessage("send()", "sent unexpected number of bytes"); 
 
-            printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
+   //          printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
             
 
             // Should I close all sockets before re-entering the infinite loop?
