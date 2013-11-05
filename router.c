@@ -335,7 +335,8 @@ int main(int argc, char* argv[])
 		/**********************************************/ 
 		servSock[neighbors->socket] = neighbors->socket; 
 		FD_SET(neighbors->socket, &masterFD_Set); 	// add the socket file descriptor to the master FD set
-		//MAX_DESCRIPTOR = neighbors->socket; 
+		if(neighbors->socket > MAX_DESCRIPTOR)
+			MAX_DESCRIPTOR = neighbors->socket; 
 		
 
 		if(DEBUG)
@@ -361,8 +362,13 @@ int main(int argc, char* argv[])
 		{
 			printf("\nservSock[%d] : %d", i, servSock[i]); 
 		}
+
+		printf("\nHighest file descriptor = %d", MAX_DESCRIPTOR); 
 	}
 
+	/* Wait up to 30 seconds. */
+   	tv.tv_sec = 30;
+    tv.tv_usec = 0;
 
 
 
@@ -376,6 +382,8 @@ int main(int argc, char* argv[])
 
 		printf("\n--\n--"); 
 		printf("\nWaiting for updates from fellow routers in my network..."); 
+
+		
 
 		/************************************************/
 		/* Zero out the messageBuffer and the tv		*/ 
@@ -408,7 +416,7 @@ int main(int argc, char* argv[])
 
 	            if(numBytes < 0)
 	            {
-	                printf("\nsend() failed"); 
+	                printf("\nsend() failed with socket #%d", servSock[i]); 
 	                break; 
 	            }
 	        	else if(numBytes != sizeof(testMessage))
@@ -420,30 +428,37 @@ int main(int argc, char* argv[])
 	            printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, i, messageBuffer); 
         	}
         	
+        	/* Wait up to 30 seconds. */
+	   		tv.tv_sec = 20;
+	       	tv.tv_usec = 0;
+
+	       	if(DEBUG)
+	       	{
+	       		printf("\nselect() will wait for %zu seconds", tv.tv_sec); 
+	       		printf("\nWaiting on select()...");
+	       	}
+	       		
+
+
+		   	retval = select(MAX_DESCRIPTOR + 1, &rfds, NULL, NULL, &tv);
+
+	       	if(retval < 0)
+	       	{
+	       		printf("select() failed"); 
+	       		continue; 		// exit the loop 
+	       	}
+	       	else if(retval == 0)
+	       	{
+	       		printf("select() timed out"); 
+	       		continue; 		// exit the loop 
+	       	}
+	       	else if(retval)
+	       		printf("Data is available now from %d socket(s).", retval);
+
+        	
+        	
         }
 
-
-   		/* Wait up to 30 seconds. */
-   		tv.tv_sec = 30;
-       	tv.tv_usec = 0;
-
-       	if(DEBUG)
-       		printf("\nWaiting on select()..."); 
-
-	   	retval = select(MAX_DESCRIPTOR + 1, &rfds, NULL, NULL, &tv);
-
-       	if(retval < 0)
-       	{
-       		printf("select() failed"); 
-       		continue; 		// exit the loop 
-       	}
-       	else if(retval == 0)
-       	{
-       		printf("select() timed out"); 
-       		continue; 		// exit the loop 
-       	}
-       	else if(retval)
-       		printf("Data is available now from %d socket(s).", retval);
 
        	/************************************************/
 		/* Zero out the messageBuffer again				*/ 
@@ -482,39 +497,64 @@ int main(int argc, char* argv[])
        			/****************************************************/ 
        			readyDescriptors--; 
 
-       			numBytes = 1;
-       			do
-       			{
-       				numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0); 
+       			// numBytes = 1;
+       			// do
+       			// {
+       			// 	numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0); 
 
-       				if(numBytes < 0)
-       				{
-       					printf("\nrecv() failed"); 
-       					break;  
-       				}
-       				else if(numBytes == 0)
-       				{
-       					DieWithUserMessage("\nrecv()", "connection closed prematurely"); 
-       					break; 
-       				}
+       			// 	if(numBytes < 0)
+       			// 	{
+       			// 		printf("\nrecv() failed"); 
+       			// 		break;  
+       			// 	}
+       			// 	else if(numBytes == 0)
+       			// 	{
+       			// 		DieWithUserMessage("\nrecv()", "connection closed prematurely"); 
+       			// 		break; 
+       			// 	}
 
-       				/********************************************************/ 
-       				/* Now that we know which socket the update came from	*/ 
-       				/* we can determine which neighbor the update came from */ 
-       				/********************************************************/ 
-       				char* tempName = GetRouterName(servSock[i]); 
-       				strncpy(neighborName, tempName, 1); 
+       			// 	/********************************************************/ 
+       			// 	 Now that we know which socket the update came from	 
+       			// 	/* we can determine which neighbor the update came from */ 
+       			// 	/********************************************************/ 
+       			// 	char* tempName = GetRouterName(servSock[i]); 
+       			// 	strncpy(neighborName, tempName, 1); 
 
 
-       				if(DEBUG)
-       				{
-       					printf("\n%d: Received %zu bytes from socket #%d (Router %s)", i, numBytes, servSock[i], neighborName); 
-       					printf("\nReceived message: %s", messageBuffer); 
-       				}
+       			// 	if(DEBUG)
+       			// 	{
+       			// 		printf("\n%d: Received %zu bytes from socket #%d (Router %s)", i, numBytes, servSock[i], neighborName); 
+       			// 		printf("\nReceived message: %s", messageBuffer); 
+       			// 	}
 
        				
 
-       			} while(numBytes >= 0); 
+       			// } while(numBytes >= 0); 
+
+   				/****************************/ 
+       			/* 		Version 2 			*/ 
+       			/****************************/ 
+       			numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0); 
+
+   				if(numBytes < 0)
+   				{
+   					printf("\nrecv() failed from socket #%d", servSock[i]); 
+   					 
+   				}
+   				else if(numBytes == 0)
+   				{
+   					printf("\nrecv()", "connection closed prematurely"); 
+   				}
+
+   				char* tempName = GetRouterName(servSock[i]); 
+   				strncpy(neighborName, tempName, 1); 
+
+
+   				if(DEBUG)
+   				{
+   					printf("\n%d: Received %zu bytes from socket #%d (Router %s)", i, numBytes, servSock[i], neighborName); 
+   					printf("\nReceived message: %s", messageBuffer); 
+   				}
 
        			
        			/*************************************************/
@@ -655,7 +695,7 @@ int main(int argc, char* argv[])
 			// 		- Router update messages: U dest cost 
 			// 		- Link cost messages: L neighbor cost 
 			// If neighborSock = -1 then connect() failed above 
-			printf("\nAttempting to send an update message...");
+			//printf("\nAttempting to send an update message...");
 			// numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
 
    //          if(numBytes < 0)
