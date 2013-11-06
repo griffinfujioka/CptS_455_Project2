@@ -92,6 +92,65 @@ char* GetRouterName(int socket)
 	return 0; 
 }
 
+/********************************************************/
+/* Given a socket number 								*/ 
+/* send your routing table to that socket    			*/ 
+/********************************************************/
+void SendRoutingTable(int socket)
+{
+	int j = 0; 
+	char message[24]; 
+	char receiverName[1]; 		// The router receiving of this message
+	linkInfo* routerLink; 
+
+	char* tmpName = GetRouterName(socket);
+	strncpy(receiverName, tmpName, 1); 
+	receiverName[1] = '\0'; 
+
+	printf("\nAttempting to send routing table to %s (socket #%d)", receiverName, socket); 
+
+
+	/* Iterate through your routing table sending 	*/ 
+	/* each row individually to neighbor->socket 	*/ 
+	/* as a U message 								*/ 
+	for(j=0; j < MAXROUTERS; j++)
+	{
+		routerLink = &linkInfoTable[j]; 
+
+		/****************************************************************************/ 
+		/* If routerLink->router == 0, then there is no direct link to this router 	*/ 
+		/****************************************************************************/ 
+		if(routerLink->router == 0)
+			continue; 
+
+		//Put the table entries into the message buffer 
+		char* dest = routerLink->router; 
+
+
+		int cost = routerLink->cost;
+
+		memset(&message, 0, sizeof(message)); 
+
+		snprintf( message, sizeof(message), "U %C %d", dest[0], cost);
+
+
+		// for each of the connections, receive: 
+		// 		- Router update messages: U dest cost 
+		// 		- Link cost messages: L neighbor cost 
+		// If neighborSock = -1 then connect() failed above 
+		// printf("\nAttempting to send an update message...");
+		ssize_t numBytes = send(socket, message, sizeof(message), 0); 
+
+         if(numBytes < 0)
+             DieWithSystemMessage("send() failed"); 
+     	else if(numBytes != sizeof(message))
+             DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+
+         printf("\nSuccessfully sent a %zu byte update message on socket #%d: %s\n", numBytes, socket, message); 
+	}
+
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -242,7 +301,6 @@ int main(int argc, char* argv[])
 	/************************************/ 
 	FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
 	MAX_DESCRIPTOR = receivingSocket;
-	// Without the line below, select() fails... 
 	FD_SET(receivingSocket, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
 
 
@@ -401,32 +459,28 @@ int main(int argc, char* argv[])
         memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set));  
 
 
+        /****************************************************/ 
+        /* This seems like a good place to setup triggered 	*/ 
+        /* update. That is, be prepared to receive updates	*/ 
+        /* from neighboring routers, update your routing 	*/ 
+        /* table and send updates to your neighbors 		*/ 
+        /****************************************************/ 
+
+
+        /****************************************************/ 
+        /* This for-loop ensures that update messages 		*/ 
+        /* will be sent to neighboring routers every 30s 	*/ 
+        /****************************************************/ 
         for(i=0; i < MAX_DESCRIPTOR + 1; i++)
         {
+        	/******************************************************/ 
+        	/* If servSock[i] != 0, then this socket is connected */ 
+        	/* and we should send updates to it 				  */ 
+        	/******************************************************/
         	if(servSock[i] != 0)
         	{
         		
-        		char testMessage[24] = "Test message\0"; 
-        		strncpy(messageBuffer, testMessage, sizeof(testMessage));
-
-        		/********************************************************/ 
-       			/* Send an update message to this router via its socket	*/  
-       			/********************************************************/ 
-       			numBytes = send(servSock[i], messageBuffer, sizeof(testMessage), 0); 
-
-	            if(numBytes < 0)
-	            {
-	                printf("\nsend() failed with socket #%d", servSock[i]); 
-	                break; 
-	            }
-	        	else if(numBytes != sizeof(testMessage))
-	        	{
-	                printf("\nsend(): sent unexpected number of bytes"); 
-	                break; 
-	            }
-
-	            printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, i, messageBuffer); 
-        	
+        		
 
 	        	/* Wait up to 30 seconds. */
 		   		tv.tv_sec = 20;
@@ -445,15 +499,18 @@ int main(int argc, char* argv[])
 		       	if(retval < 0)
 		       	{
 		       		printf("select() failed"); 
-		       		continue; 		// exit the loop 
+		       		//continue; 		// exit the loop 
 		       	}
 		       	else if(retval == 0)
 		       	{
 		       		printf("select() timed out"); 
-		       		continue; 		// exit the loop 
+		       		//continue; 		// exit the loop 
 		       	}
 		       	else if(retval)
 		       		printf("Data is available now from %d socket(s).", retval);
+
+		       	/* Send your entire routing table to this socket */ 
+        		SendRoutingTable(servSock[i]); 
 	       }
 
         	
@@ -637,79 +694,6 @@ int main(int argc, char* argv[])
        	}
 
        	printf("\nIterated through all possible routers.");
-
-       
-       	// for each of my neighboring connections
-       	// 		- recv some messages  
-        for(i=0; i< MAXROUTERS; i++)		// count = number of neighbor routers with connections 
-		{
-			
-			// linkInfo* routerLink = &linkInfoTable[i]; 
-
-			// // Check to see if the router deserves an update 
-			// if(routerLink->router == 0)
-			// 	continue; 
-
-			// printf("\a"); 
-			// // Need neighborSocket for socket # 
-			// neighborSocket* neighbor = GetNeighborSocket(routerLink->router); 
-
-			// if(neighbor->neighbor == 0)
-			// 	continue; 
-			// else
-			// {
-			// 	neighborSock = neighbor->socket; 
-
-			// 	if(DEBUG)
-			// 	{
-			// 		printf("\nNeighbor: %s", neighbor->neighbor); 
-			// 		printf("\nSocket: %d", neighbor->socket); 
-			// 		printf("\nneighborSock: %d", neighborSock); 
-			// 	}
-				
-			// }
-
-			// // Need routerInfo for baseport 
-			// routerInfo* router = GetRouterInfo(neighbor->neighbor); 
-
-
-			// // Setup the neighborAddr 
-			// memset(&neighborAddr, 0, sizeof(neighborAddr));                 			// zero out structure 
-		 //    neighborAddr.sin_family = AF_INET;                                      // IPV4 address family 
-		 //    neighborAddr.sin_addr.s_addr = htonl(INADDR_ANY);         				// any incoming interface 
-		 //    neighborAddr.sin_port = htons(router->baseport);  
-		 //    neighborAddrLength = sizeof(neighborAddr);               
-
-		 //    printf("\nneighborSock: %d", neighborSock);
-		 //    printf("\nneighborAddr.sin_port: %d", neighborAddr.sin_port); 
-		 //    printf("\nneighborAddrLength: %d", neighborAddrLength); 
-
-
-			// Put the table entries into the message buffer 
-			// char* dest = routerLink->router; 
-			// int cost = routerLink->cost;
-
-			// memset(&messageBuffer, 0, sizeof(messageBuffer)); 
-
-			// snprintf( messageBuffer, sizeof(messageBuffer), "U %C %d", dest[0], cost);
-
-
-			// for each of the connections, receive: 
-			// 		- Router update messages: U dest cost 
-			// 		- Link cost messages: L neighbor cost 
-			// If neighborSock = -1 then connect() failed above 
-			//printf("\nAttempting to send an update message...");
-			// numBytes = send(neighborSock, messageBuffer, sizeof(messageBuffer), 0); 
-
-   //          if(numBytes < 0)
-   //              DieWithSystemMessage("send() failed"); 
-   //      	else if(numBytes != sizeof(messageBuffer))
-   //              DieWithUserMessage("send()", "sent unexpected number of bytes"); 
-
-   //          printf("\nSuccessfully sent a %zu byte update message to %s: %s\n", numBytes, dest, messageBuffer); 
-            
-
-		}
        
 	}
 
