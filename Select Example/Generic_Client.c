@@ -67,7 +67,7 @@ main (int argc, char *argv[])
          close(sockfd);
          exit(-1);
       }
-      printf("%d bytes sent\n", len);
+      printf("%d bytes sent to socket #%d\n", len, sockfd);
 
       /*************************************************/
       /* Receive data buffer from the worker job       */
