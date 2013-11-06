@@ -411,6 +411,8 @@ int main(int argc, char* argv[])
 		if(DEBUG)
 			printf("\n\n -- Iteration %d -- ", iterationCounter++); 
 
+		memset(messageBuffer, 0, sizeof(messageBuffer));
+
 		/*************************************************/ 
         /* Copy the masterFD_Set over to the temp FD set */ 
         /*************************************************/
@@ -422,7 +424,7 @@ int main(int argc, char* argv[])
         	if(servSock[i] != 0)
         	{
         		FD_SET(servSock[i], &rfds); 
-        		SendTestMessage(servSock[i]); 
+        		//SendTestMessage(servSock[i]); 
         		printf("\nSet socket #%d", servSock[i]); 
         	}
         		
@@ -525,15 +527,23 @@ int main(int argc, char* argv[])
 					/**********************************************/
 					printf("  %zu bytes received\n", numBytes);
 
+					/* Here is where we'd do triggered update */ 
+					memset(messageBuffer, 0, sizeof(messageBuffer));
+
 					/**********************************************/
 					/* Echo the data back to the client           */
 					/**********************************************/
-					numBytes = send(i, messageBuffer, numBytes, 0);
+					numBytes = send(servSock[i], messageBuffer, numBytes, 0);
 					if (numBytes < 0)
 					{
 					 perror("  send() failed");
 					 close_conn = 1;
 					 break;
+					}
+					else if(numBytes == 24)
+					{
+						// We received the expected amount of bytes
+						break; 
 					}
 
 				} while (1);
@@ -568,15 +578,16 @@ int main(int argc, char* argv[])
 
        		} /* End of if (FD_ISSET(i, &working_set)) */
 
-               for(i=0; i < MAX_DESCRIPTOR + 1; i++)
-				{
-					if(servSock[i] != 0)
-					{
-						SendTestMessage(servSock[i]); 
-					}
-						
-				}
        	} /* End of loop through selectable descriptors */
+
+	     for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+		{
+			if(servSock[i] != 0)
+			{
+				SendTestMessage(servSock[i]); 
+			}
+				
+		}
 
        				
 
