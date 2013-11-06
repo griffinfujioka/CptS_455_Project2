@@ -48,35 +48,39 @@ main (int argc, char *argv[])
    }
    printf("Connect completed.\n");
 
-   /*************************************************/
-   /* Enter data buffer that is to be sent          */
-   /*************************************************/
-   printf("Enter message to be sent:\n");
-   gets(send_buf);
-
-   /*************************************************/
-   /* Send data buffer to the worker job            */
-   /*************************************************/
-   len = send(sockfd, send_buf, strlen(send_buf) + 1, 0);
-   if (len != strlen(send_buf) + 1)
+   for(;;)
    {
-      perror("send");
-      close(sockfd);
-      exit(-1);
-   }
-   printf("%d bytes sent\n", len);
 
-   /*************************************************/
-   /* Receive data buffer from the worker job       */
-   /*************************************************/
-   len = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
-   if (len != strlen(send_buf) + 1)
-   {
-      perror("recv");
-      close(sockfd);
-      exit(-1);
+      /*************************************************/
+      /* Enter data buffer that is to be sent          */
+      /*************************************************/
+      printf("Enter message to be sent:\n");
+      gets(send_buf);
+
+      /*************************************************/
+      /* Send data buffer to the worker job            */
+      /*************************************************/
+      len = send(sockfd, send_buf, strlen(send_buf) + 1, 0);
+      if (len != strlen(send_buf) + 1)
+      {
+         perror("send");
+         close(sockfd);
+         exit(-1);
+      }
+      printf("%d bytes sent\n", len);
+
+      /*************************************************/
+      /* Receive data buffer from the worker job       */
+      /*************************************************/
+      len = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
+      if (len != strlen(send_buf) + 1)
+      {
+         perror("recv");
+         close(sockfd);
+         exit(-1);
+      }
+      printf("%d bytes received\n", len);
    }
-   printf("%d bytes received\n", len);
 
    /*************************************************/
    /* Close down the socket                         */

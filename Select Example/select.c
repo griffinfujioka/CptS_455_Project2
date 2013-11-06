@@ -191,7 +191,7 @@ main (int argc, char *argv[])
                   /* Add the new incoming connection to the     */
                   /* master read set                            */
                   /**********************************************/
-                  printf("  New incoming connection - %d\n", new_sd);
+                  printf("  New incoming connection : socket #%d\n", new_sd);
                   FD_SET(new_sd, &master_set);
                   if (new_sd > max_sd)
                      max_sd = new_sd;
