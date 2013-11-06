@@ -272,66 +272,13 @@ int main(int argc, char* argv[])
 	/****************************************************************/ 
 	neighbors = createConnections(router); 
 
-	// Do we need to setup the receiving socket? 
-	// Setup the receiving socket. Bind it to the local baseport
-	// to receive L and P messages (but not U messages) 
-	// That means we have to: 
-	// 		(1) socket() to create the socket 
-	// 		(2) bind() the socket to a local address
-	// 		(3) listen() for connections 
-	// 		(4) accept() a connection 
-
-	/********************************************/ 
-   	/* Create socket for incoming connections 	*/ 
-   	/********************************************/ 
-   	if((receivingSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        DieWithSystemMessage("socket() failed"); 
-
-    if(DEBUG)
-    	printf("\nCreated socket %d for receiving...", receivingSocket); 
-
-	/*************************************************************/
-   	/* Allow socket descriptor to be reuseable                   */
-   	/*************************************************************/
-   	if(retval = setsockopt(receivingSocket, SOL_SOCKET,  SO_REUSEADDR,
-                   (char *)&on, sizeof(on)) < 0)
-   	{
-    	perror("setsockopt() failed");
-      	close(receivingSocket);
-      	exit(-1);
-   	}
-
-   	/********************************************/ 
-   	/* Set socket to be non-blocking		 	*/ 
-   	/********************************************/ 
-	if(retval = ioctl(receivingSocket, FIONBIO, (char *)&on) < 0)
-		DieWithSystemMessage("ioctl() failed"); 
-
-    struct sockaddr_in servAddr;                                         // local address
-    memset(&servAddr, 0, sizeof(servAddr));                 // zero out structure 
-    servAddr.sin_family = AF_INET;                                        // IPV4 address family 
-    servAddr.sin_addr.s_addr = htonl(INADDR_ANY);         // any incoming interface 
-    servAddr.sin_port = htons(receivingPort);   
-
-    /********************************************/ 
-   	/* Bind to the local address 			 	*/ 
-   	/********************************************/ 
-    if(bind(receivingSocket, (struct sockaddr*) &servAddr, sizeof(servAddr)) < 0)
-        DieWithSystemMessage("bind() failed"); 
-
-    /********************************************/ 
-   	/* Mark the socket so it will listen for 	*/ 
-   	/* incoming connections 				 	*/ 
-   	/********************************************/ 
-    if(listen(receivingSocket, MAXROUTERS) < 0)
-        DieWithSystemMessage("listen() failed");  
 
 	/************************************/ 
 	/* 	Initialize the master fd_set 	*/ 
 	/************************************/ 
 	FD_ZERO(&masterFD_Set);			// clear the master file descriptor set 
 	MAX_DESCRIPTOR = receivingSocket;
-	FD_SET(receivingSocket, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
+	//FD_SET(0, &masterFD_Set); 		// add file descriptor 0 for keyboard to masterFD_Set
 
 
 	if(DEBUG)
@@ -409,9 +356,6 @@ int main(int argc, char* argv[])
 		neighbors = &neighborSocketArray[i]; 
 
 
-
-		
-
 		if(neighbors->neighbor == 0)
 		{
 			servSock[i] == 0; 
@@ -455,7 +399,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Wait up to 30 seconds. */
-   	tv.tv_sec = 30;
+   	tv.tv_sec = 5;
     tv.tv_usec = 0;
 
     /*************************************************************/
@@ -470,10 +414,22 @@ int main(int argc, char* argv[])
 		/*************************************************/ 
         /* Copy the masterFD_Set over to the temp FD set */ 
         /*************************************************/
-        memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set));
+        FD_ZERO(&rfds);
+        //memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set));
+
+        for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+        {
+        	if(servSock[i] != 0)
+        	{
+        		FD_SET(servSock[i], &rfds); 
+        		SendTestMessage(servSock[i]); 
+        		printf("\nSet socket #%d", servSock[i]); 
+        	}
+        		
+        }
 
          /* Wait up to 30 seconds. */
-   		tv.tv_sec = 30;
+   		tv.tv_sec = 5;
        	tv.tv_usec = 0;
 
        	if(DEBUG)
@@ -491,27 +447,31 @@ int main(int argc, char* argv[])
        	if(retval < 0)
        	{
        		printf("select() failed"); 
-       		continue; 		// go back to the beginning of the infinite loop
+       		//continue; 		// go back to the beginning of the infinite loop
        	}
        	else if(retval == 0)
        	{
        		printf("select() timed out"); 
-       		continue; 		// go back to the beginning of the infinite loop
+       		//continue; 		// go back to the beginning of the infinite loop
        	}
        	else if(retval)
        		printf("Data is available now from %d socket(s).", retval);
 
-       	readyDescriptors = retval; 
+     
+       	readyDescriptors = retval;
 
+       	if(DEBUG)
+       		printf("\nThere are %d ready descriptors.", readyDescriptors); 
        	/************************************************************/ 
-       	/* Iterate throughh all selectable file descriptors 		*/ 
+       	/* Iterate through all selectable file descriptors 		*/ 
        	/************************************************************/
        	for(i=0; i<= MAX_DESCRIPTOR + 1 && readyDescriptors > 0; ++i)
        	{
        		if(DEBUG)
        		{
-       			printf("\n-- Iteration %d -- ", i); 
+       			printf("\n-- Iteration %d.%d -- ", iterationCounter,i); 
        		}
+       		/* Doesn't seem like FD_ISSSET is working as assumed */ 
        		if(FD_ISSET(servSock[i], &rfds))
        		{
        			if(DEBUG)
@@ -520,100 +480,102 @@ int main(int argc, char* argv[])
        				printf("\nThere are %d ready descriptors left.", readyDescriptors); 
        			}
 
-
-
+       			
 
        			readyDescriptors -= 1; 
 
-       			if(i == receivingSocket)
-       			{
-       				if(DEBUG)
-       				{
-       					printf("\nReceiving socket #%d = #%d is readable.", i, receivingSocket); 
-       				}
-       			}
-       			/* This is not the receiving socket and therefore 	*/ 
-       			/* an existing connection is available 				*/ 
-       			else
-       			{
-       				if(DEBUG)
-       				{
-       					printf("\nDescriptor %d is readable.", i); 
-       					/*************************************************/
-		               /* Receive all incoming data on this socket      */
-		               /* before we loop back and call select again.    */
-		               /*************************************************/
-		               do
-		               {
-		                  /**********************************************/
-		                  /* Receive data on this connection until the  */
-		                  /* recv fails with EWOULDBLOCK.  If any other */
-		                  /* failure occurs, we will close the          */
-		                  /* connection.                                */
-		                  /**********************************************/
-		                  numBytes = recv(i, messageBuffer, sizeof(messageBuffer), 0);
-		                  if (numBytes < 0)
-		                  {
-		                     if (errno != EWOULDBLOCK)
-		                     {
-		                        perror("  recv() failed");
-		                        close_conn = 1;
-		                     }
-		                     break;
-		                  }
+   				
+				printf("\nDescriptor %d is readable.", servSock[i]); 
+				/*************************************************/
+				/* Receive all incoming data on this socket      */
+				/* before we loop back and call select again.    */
+				/*************************************************/
+				do
+				{
+					/**********************************************/
+					/* Receive data on this connection until the  */
+					/* recv fails with EWOULDBLOCK.  If any other */
+					/* failure occurs, we will close the          */
+					/* connection.                                */
+					/**********************************************/
+					numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
+					if (numBytes < 0)
+					{
+					 if (errno != EWOULDBLOCK)
+					 {
+					    perror("  recv() failed");
+					    close_conn = 1;
+					 }
+					 break;
+					}
 
-		                  /**********************************************/
-		                  /* Check to see if the connection has been    */
-		                  /* closed by the client                       */
-		                  /**********************************************/
-		                  if (numBytes == 0)
-		                  {
-		                     printf("  Connection closed\n");
-		                     close_conn = 1;
-		                     break;
-		                  }
+					/**********************************************/
+					/* Check to see if the connection has been    */
+					/* closed by the client                       */
+					/**********************************************/
+					if (numBytes == 0)
+					{
+					 printf("  Connection closed\n");
+					 close_conn = 1;
+					 break;
+					}
 
-		                  /**********************************************/
-		                  /* Data was recevied                          */
-		                  /**********************************************/
-		                  printf("  %zu bytes received\n", numBytes);
+					/**********************************************/
+					/* Data was recevied                          */
+					/**********************************************/
+					printf("  %zu bytes received\n", numBytes);
 
-		                  /**********************************************/
-		                  /* Echo the data back to the client           */
-		                  /**********************************************/
-		                  numBytes = send(i, messageBuffer, numBytes, 0);
-		                  if (numBytes < 0)
-		                  {
-		                     perror("  send() failed");
-		                     close_conn = 1;
-		                     break;
-		                  }
+					/**********************************************/
+					/* Echo the data back to the client           */
+					/**********************************************/
+					numBytes = send(i, messageBuffer, numBytes, 0);
+					if (numBytes < 0)
+					{
+					 perror("  send() failed");
+					 close_conn = 1;
+					 break;
+					}
 
-		               } while (1);
+				} while (1);
 
-		               /*************************************************/
-		               /* If the close_conn flag was turned on, we need */
-		               /* to clean up this active connection.  This     */
-		               /* clean up process includes removing the        */
-		               /* descriptor from the master set and            */
-		               /* determining the new maximum descriptor value  */
-		               /* based on the bits that are still turned on in */
-		               /* the master set.                               */
-		               /*************************************************/
-		               if (close_conn)
-		               {
-		                  close(i);
-		                  FD_CLR(i, &masterFD_Set);
-		                  if (i == MAX_DESCRIPTOR)
-		                  {
-		                     while (FD_ISSET(MAX_DESCRIPTOR, &masterFD_Set) == 0)
-		                        MAX_DESCRIPTOR -= 1;
-		                  }
-		               }
-       				} 
-       			} /* End of existing connection is readable */
+               /*************************************************/
+               /* If the close_conn flag was turned on, we need */
+               /* to clean up this active connection.  This     */
+               /* clean up process includes removing the        */
+               /* descriptor from the master set and            */
+               /* determining the new maximum descriptor value  */
+               /* based on the bits that are still turned on in */
+               /* the master set.                               */
+               /*************************************************/
+               if (close_conn)
+               {
+                  //close(i);
+                  FD_CLR(i, &masterFD_Set);
+                  servSock[i] = 0; 
+               		if(DEBUG)
+               		{
+               			printf("\nClose Connection Flag Thrown!"); 
+               		}
+                  if (i == MAX_DESCRIPTOR)
+                  {
+                     while (FD_ISSET(MAX_DESCRIPTOR, &masterFD_Set) == 0)
+                        MAX_DESCRIPTOR -= 1;
+                  }
+               }
+
+
+
 
        		} /* End of if (FD_ISSET(i, &working_set)) */
+
+               for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+				{
+					if(servSock[i] != 0)
+					{
+						SendTestMessage(servSock[i]); 
+					}
+						
+				}
        	} /* End of loop through selectable descriptors */
 
        				
