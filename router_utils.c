@@ -1,5 +1,7 @@
 #include "readrouters.c"
 
+static const int DEBUG = 1; 
+
 /****************************************************************************/ 	
 /* Given a neighboring router's name, look up and return that router's 		*/ 
 /* (neighbor, socket) combination 											*/ 
@@ -148,7 +150,7 @@ void SendTestMessage(int socket)
 	strncpy(receiverName, tmpName, 1); 
 	receiverName[1] = '\0'; 
 
-	char testMessage[24] = "L B 4\0"; 
+	char testMessage[24] = "U D 4\0"; 
 
 
     /********************************************************/ 
@@ -171,9 +173,65 @@ void SendTestMessage(int socket)
 
 }
 
-/****************************************************************************/ 
-/* Given the name of a router, determine if that router exists in the 		*/ 
-/* routing table. If so, return a pointer to the router. [Else] if the 		*/ 
-/* router is not already in the routing table, add it and return a pointer  */ 
-/* to it 																	*/ 
-/****************************************************************************/ 
+/********************************************************************************/ 
+/* Given the name of a router, determine if that router exists in the 			*/ 
+/* routing table. If so, return a pointer to the router's entry. Else if the 	*/ 
+/* router is not already in the routing table, add it and return a pointer  	*/ 
+/* to it 																		*/ 
+/********************************************************************************/ 
+linkInfo* LookUpRouter(char* router)
+{
+	int i = 0; 
+
+	if(DEBUG)
+	{
+		printf("\nLooking for router %s in my routing table... There are currently %d entries", router, linkcount); 
+	}
+
+	linkInfo* tmpLink = &linkInfoTable[i]; 
+
+	for(i=0; i < linkcount - 1; i++)
+	{
+		printf("\nLooking at linkInfoTable[%d]", i); 
+		tmpLink = &linkInfoTable[i]; 
+
+
+		if(tmpLink->cost == 0)
+			continue; 
+
+		if(strncmp(tmpLink->router, router, 1) == 0)
+		{
+			if(DEBUG)
+			{
+				printf("\nRouter %s is already in my routing table at linkInfoTable[%d]", router,i); 
+			}
+			return &linkInfoTable[i]; 
+		}
+
+
+	}
+
+	/****************************************************/ 
+	/* We've looked through all of our routing table 	*/ 
+	/* and didn't find an entry for the provided router */ 
+	/* So, we add it to the routing table and return 	*/ 
+	/* a pointer to the newly added entry				*/ 
+	/****************************************************/ 
+	if(DEBUG)
+		printf("\nFailed to find entry for router in routing table... Adding an entry for Router %s at linkInfoTable[%d]", router, i); 
+	
+	strncpy(linkInfoTable[i].router, router, 1); 
+	linkcount += 1; 
+
+	printf("\nTesting for successful insert of Router %s", linkInfoTable[i].router); 
+
+	return &linkInfoTable[i+1];
+
+
+}
+
+
+
+
+
+

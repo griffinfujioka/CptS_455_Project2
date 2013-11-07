@@ -8,7 +8,6 @@
 #include "DieWithMessage.c"
 #include "router_utils.c"
 
-static const int DEBUG = 1; 
 
 static int MAX_DESCRIPTOR = 0; 				// Highest file descriptor 
 
@@ -410,6 +409,16 @@ int main(int argc, char* argv[])
 							successfullyProcessedUpdate = 1; 
 
 							/* What exactly do I update when I receive an update message? */ 
+							linkInfo* link = LookUpRouter(&dest); 
+
+							if(link->cost != cost)
+							{
+								/* We must update the routing table and send updates! 	*/ 
+								link->cost = cost; 
+
+								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
+									router, dest, link->cost, 0); 
+							}
 							break; 
 						case 'L':
 							printf("\nReceived link cost message: %s", messageBuffer); 
