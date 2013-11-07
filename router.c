@@ -156,7 +156,10 @@ int main(int argc, char* argv[])
 	}
 
 	if(DEBUG)
+	{
+		printf("\n# Links = %d", linkcount); 
 		printf("\nConnections: "); 
+	}
 
 	i = 0; 
 	while(i < MAXLINKS)
@@ -415,6 +418,8 @@ int main(int argc, char* argv[])
 							{
 								/* We must update the routing table and send updates! 	*/ 
 								link->cost = cost; 
+								link->locallink = 0; 
+								link->remotelink = 0; 
 
 								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
 									router, dest, link->cost, 0); 
@@ -436,7 +441,8 @@ int main(int argc, char* argv[])
 						if(DEBUG)
 						{
 							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
-							printf("\n[TRIGGERED UPDATE]"); 
+							printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
+							SendRoutingTable(servSock[i]); 
 						}
 
 						break; 		// exit the receiving loop

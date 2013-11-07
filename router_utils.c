@@ -81,14 +81,14 @@ char* GetRouterName(int socket)
 }
 
 /********************************************************/
-/* Given a socket number 								*/ 
-/* send your routing table to that socket    			*/ 
+/* Given a socket number send your routing table		*/ 
+/* to that socket using a series of U messages    		*/ 
 /********************************************************/
 void SendRoutingTable(int socket)
 {
 	int j = 0; 
 	char message[24]; 
-	char receiverName[1]; 		// The router receiving of this message
+	char receiverName[1]; 		// The receiving router
 	linkInfo* routerLink; 
 
 	char* tmpName = GetRouterName(socket);
@@ -97,10 +97,11 @@ void SendRoutingTable(int socket)
 
 	printf("\nAttempting to send routing table to %s (socket #%d)", receiverName, socket); 
 
-
+	/************************************************/ 
 	/* Iterate through your routing table sending 	*/ 
 	/* each row individually to neighbor->socket 	*/ 
 	/* as a U message 								*/ 
+	/************************************************/ 
 	for(j=0; j < MAXROUTERS; j++)
 	{
 		routerLink = &linkInfoTable[j]; 
@@ -119,7 +120,7 @@ void SendRoutingTable(int socket)
 
 		memset(&message, 0, sizeof(message)); 
 
-		snprintf( message, sizeof(message), "U %C %d", dest[0], cost);
+		snprintf(message, sizeof(message), "U %C %d", dest[0], cost);
 
 
 		// for each of the connections, receive: 
@@ -129,12 +130,12 @@ void SendRoutingTable(int socket)
 		// printf("\nAttempting to send an update message...");
 		ssize_t numBytes = send(socket, message, sizeof(message), 0); 
 
-         if(numBytes < 0)
-             DieWithSystemMessage("send() failed"); 
+        if(numBytes < 0)
+            DieWithSystemMessage("send() failed"); 
      	else if(numBytes != sizeof(message))
-             DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+            DieWithUserMessage("send()", "sent unexpected number of bytes"); 
 
-         printf("\nSuccessfully sent a %zu byte update message on socket #%d: %s\n", numBytes, socket, message); 
+         printf("\nSuccessfully sent a %zu byte update message to Router %s via socket #%d: %s\n", numBytes, receiverName, socket, message); 
 	}
 
 }
@@ -195,12 +196,18 @@ linkInfo* LookUpRouter(char* router)
 		printf("\nLooking at linkInfoTable[%d]", i); 
 		tmpLink = &linkInfoTable[i]; 
 
+		printf("\n 1"); 
+		if(tmpLink == 0)
+			break; 				// exit the for loop 
 
-		if(tmpLink->cost == 0)
-			continue; 
+		printf(" 2"); 
+		if(tmpLink->cost == 0 || tmpLink->router == 0)
+			break; 				// exit the for loop
 
+		printf(" 3"); 
 		if(strncmp(tmpLink->router, router, 1) == 0)
 		{
+			printf(" 3.1"); 
 			if(DEBUG)
 			{
 				printf("\nRouter %s is already in my routing table at linkInfoTable[%d]", router,i); 
@@ -220,10 +227,11 @@ linkInfo* LookUpRouter(char* router)
 	if(DEBUG)
 		printf("\nFailed to find entry for router in routing table... Adding an entry for Router %s at linkInfoTable[%d]", router, i); 
 	
-	strncpy(linkInfoTable[i].router, router, 1); 
+	printf(" 4"); 
+	strncpy(linkInfoTable[i+1].router, router, 1); 
 	linkcount += 1; 
 
-	printf("\nTesting for successful insert of Router %s", linkInfoTable[i].router); 
+	printf("\nTesting for successful insert of Router %s", linkInfoTable[i+1].router); 
 
 	return &linkInfoTable[i+1];
 
