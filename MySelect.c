@@ -155,8 +155,14 @@ void SendRoutingTable(int socket)
 /* Send a test message to the socket parameter */ 
 void SendTestMessage(int socket)
 {
-	char testMessage[24] = "Test message\0"; 
-    //strncpy(messageBuffer, testMessage, sizeof(testMessage));
+	
+	char receiverName[1]; 
+    char* tmpName = GetRouterName(socket);
+	strncpy(receiverName, tmpName, 1); 
+	receiverName[1] = '\0'; 
+
+	char testMessage[24] = "L B 4\0"; 
+
 
     /********************************************************/ 
    	/* Send a test message to this router via its socket        */  
@@ -174,7 +180,7 @@ void SendTestMessage(int socket)
         return; 
     }
 
-    printf("\nSuccessfully sent a %zu byte update message to socket #%d: %s\n", numBytes, socket, testMessage); 
+    printf("\nSuccessfully sent a %zu byte update message to Router %s via socket #%d: %s\n", numBytes, receiverName, socket, testMessage); 
 
 }
 
@@ -217,6 +223,7 @@ int main(int argc, char* argv[])
     int iterationCounter = 1; 
     int end_connection = 0; 
     int close_conn = 0; 
+    int successfullyProcessedUpdate = 0; 
 
     int on = 1; 
    
@@ -399,7 +406,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Wait up to 30 seconds. */
-   	tv.tv_sec = 5;
+   	tv.tv_sec = 15;
     tv.tv_usec = 0;
 
     /*************************************************************/
@@ -409,9 +416,15 @@ int main(int argc, char* argv[])
 	do
 	{
 		if(DEBUG)
-			printf("\n\n -- Iteration %d -- ", iterationCounter++); 
+		{
+			printf("\n\n===================================="); 
+			printf("\n     Router %s  ", router); 
+			printf("\n   Iteration %d ", iterationCounter++); 
+			printf("\n====================================="); 
+		}
+			
 
-		memset(messageBuffer, 0, sizeof(messageBuffer));
+		
 
 		/*************************************************/ 
         /* Copy the masterFD_Set over to the temp FD set */ 
@@ -431,7 +444,7 @@ int main(int argc, char* argv[])
         }
 
          /* Wait up to 30 seconds. */
-   		tv.tv_sec = 5;
+   		tv.tv_sec = 15;
        	tv.tv_usec = 0;
 
        	if(DEBUG)
@@ -455,6 +468,19 @@ int main(int argc, char* argv[])
        	{
        		printf("select() timed out"); 
        		//continue; 		// go back to the beginning of the infinite loop
+
+       		// Should I send the 30 second updates in here? 
+       		if(DEBUG)
+       		{
+       			printf("\nSince %zu seconds have elapsed, I will send my routing table to each of my neighbors", tv.tv_sec); 
+       		}
+       		for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+       		{
+       			if(servSock[i] != 0)
+       			{
+       				SendTestMessage(servSock[i]); 
+       			}
+       		}
        	}
        	else if(retval)
        		printf("Data is available now from %d socket(s).", retval);
@@ -462,13 +488,14 @@ int main(int argc, char* argv[])
      
        	readyDescriptors = retval;
 
-       	if(DEBUG)
-       		printf("\nThere are %d ready descriptors.", readyDescriptors); 
        	/************************************************************/ 
        	/* Iterate through all selectable file descriptors 		*/ 
        	/************************************************************/
        	for(i=0; i<= MAX_DESCRIPTOR + 1 && readyDescriptors > 0; ++i)
        	{
+
+       		memset(messageBuffer, 0, sizeof(messageBuffer));
+
        		if(DEBUG)
        		{
        			printf("\n-- Iteration %d.%d -- ", iterationCounter,i); 
@@ -476,6 +503,8 @@ int main(int argc, char* argv[])
        		/* Doesn't seem like FD_ISSSET is working as assumed */ 
        		if(FD_ISSET(servSock[i], &rfds))
        		{
+       			readyDescriptors -= 1; 
+
        			if(DEBUG)
        			{
        				printf("\nSocket #%d is set in the servSock[] array. Processing socket #%d...", i, servSock[i]); 
@@ -484,7 +513,7 @@ int main(int argc, char* argv[])
 
        			
 
-       			readyDescriptors -= 1; 
+       			
 
    				
 				printf("\nDescriptor %d is readable.", servSock[i]); 
@@ -500,16 +529,21 @@ int main(int argc, char* argv[])
 					/* failure occurs, we will close the          */
 					/* connection.                                */
 					/**********************************************/
+					printf("\n1"); 
 					numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
+					printf(" 2"); 
 					if (numBytes < 0)
 					{
 					 if (errno != EWOULDBLOCK)
 					 {
 					    perror("  recv() failed");
+					    printf(" 4"); 
 					    close_conn = 1;
+					    printf(" 5"); 
 					 }
 					 break;
 					}
+					printf(" 3"); 
 
 					/**********************************************/
 					/* Check to see if the connection has been    */
@@ -523,28 +557,68 @@ int main(int argc, char* argv[])
 					}
 
 					/**********************************************/
-					/* Data was recevied                          */
+					/* Data was received                          */
 					/**********************************************/
-					printf("  %zu bytes received\n", numBytes);
+					char* tmpName = GetRouterName(servSock[i]);
+					memset(neighborName, 0, sizeof(neighborName)); 
+					strncpy(neighborName, tmpName, 1); 
+					printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
 
-					/* Here is where we'd do triggered update */ 
-					memset(messageBuffer, 0, sizeof(messageBuffer));
+
+					/************************************************/ 
+					/* Examine the received data to figure out how  */ 
+					/* to process it. 								*/ 
+					/************************************************/ 
+					char messageType = messageBuffer[0];
+					int cost = messageBuffer[4] - '0'; 
+
+					switch(messageType)
+					{
+						case 'U':
+							printf("\nReceived router update message: %s", messageBuffer); 
+							char dest = messageBuffer[2]; 
+							printf("\nDestination: %c // Cost: %d", dest, cost); 
+							successfullyProcessedUpdate = 1; 
+
+							/* What exactly do I update when I receive an update message? */ 
+							break; 
+						case 'L':
+							printf("\nReceived link cost message: %s", messageBuffer); 
+							char neighbor = messageBuffer[2]; 
+							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
+							successfullyProcessedUpdate = 1; 
+							break; 
+						default: 
+							printf("\nReceived a message from Router %s, but I have no idea how to process it", neighborName); 
+							break; 
+					}
+
+					if(successfullyProcessedUpdate)
+					{
+						if(DEBUG)
+						{
+							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
+						}
+
+						break; 		// exit the receiving loop
+					}
+					
 
 					/**********************************************/
 					/* Echo the data back to the client           */
 					/**********************************************/
-					numBytes = send(servSock[i], messageBuffer, numBytes, 0);
-					if (numBytes < 0)
-					{
-					 perror("  send() failed");
-					 close_conn = 1;
-					 break;
-					}
-					else if(numBytes == 24)
-					{
-						// We received the expected amount of bytes
-						break; 
-					}
+					// numBytes = send(servSock[i], messageBuffer, numBytes, 0);
+					// if (numBytes < 0)
+					// {
+					//  perror("  send() failed");
+					//  close_conn = 1;
+					//  break;
+					// }
+					// else if(numBytes == 24)
+					// {
+					// 	// We received the expected amount of bytes
+					// 	break; 
+					// }
 
 				} while (1);
 
@@ -559,18 +633,33 @@ int main(int argc, char* argv[])
                /*************************************************/
                if (close_conn)
                {
-                  //close(i);
-                  FD_CLR(i, &masterFD_Set);
-                  servSock[i] = 0; 
+
+                	servSock[i] = 0; 
+
                		if(DEBUG)
                		{
                			printf("\nClose Connection Flag Thrown!"); 
                		}
-                  if (i == MAX_DESCRIPTOR)
-                  {
-                     while (FD_ISSET(MAX_DESCRIPTOR, &masterFD_Set) == 0)
-                        MAX_DESCRIPTOR -= 1;
-                  }
+                  	
+                  	if (i == MAX_DESCRIPTOR)
+                  	{
+                  		if(DEBUG)
+                  		{
+                  			printf("\nAhhhh boy... we must update MAX_DESCRIPTOR!\n"); 
+                  		}
+                  		int j;
+                  		for(j = MAX_DESCRIPTOR - 1; j >= 0 && servSock[j] > 0; j--)
+                  		{
+                  			printf(" %d", j); 
+                  		}
+
+                  		MAX_DESCRIPTOR = j; 
+
+                  		if(DEBUG)
+                  		{
+                  			printf("\nUpdated MAX_DESCRIPTOR to %d", MAX_DESCRIPTOR); 
+                  		}
+                  	}
                }
 
 
@@ -580,14 +669,6 @@ int main(int argc, char* argv[])
 
        	} /* End of loop through selectable descriptors */
 
-	     for(i=0; i < MAX_DESCRIPTOR + 1; i++)
-		{
-			if(servSock[i] != 0)
-			{
-				SendTestMessage(servSock[i]); 
-			}
-				
-		}
 
        				
 
