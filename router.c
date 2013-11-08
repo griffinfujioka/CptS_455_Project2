@@ -457,8 +457,14 @@ int main(int argc, char* argv[])
 							/************************************************************/
 							if(entry->cost != cost || entry->cost == 64)
 							{
-								/* We must update the routing table and send updates! 	*/ 
-								entry->cost = cost; 
+								/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
+								if(cost < entry->cost)
+								{
+									entry->cost = cost; 
+									//entry->nextHop = malloc(strlen(dest)+1); 
+									strncpy(entry->nextHop, neighborName, 1); 
+								}
+									
 
 								/* Calculate next hop 				*/ 
 

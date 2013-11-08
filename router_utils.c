@@ -261,7 +261,8 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 
 	routingTable[routingTableEntries].dest = malloc(strlen(router)+1); 
 	strncpy(routingTable[routingTableEntries].dest, router, 1); 
-	routingTable[routingTableEntries].cost = 64; 
+	routingTable[routingTableEntries].cost = 64; 		// infinite cost 
+	routingTable[routingTableEntries].nextHop = malloc(strlen(router)+1); 
 
 	routingTableEntries += 1; 
 
