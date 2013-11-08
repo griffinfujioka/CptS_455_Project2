@@ -49,6 +49,7 @@ int main(int argc, char* argv[])
 	neighborSocket* neighbors; 			// name, socket 
 	
 	in_port_t receivingPort; 			// port for receiving messages 
+	int unconnectedSocket; 
     
     struct sockaddr_in neighborAddr;    // buffer for addresses neighboring router
     int neighborSock; 					// socket for neighboring router 
@@ -258,6 +259,29 @@ int main(int argc, char* argv[])
 		printf("\nHighest file descriptor = %d", MAX_DESCRIPTOR); 
 	}
 
+	/****************************************************************/
+	/* TODO:														*/ 
+	/* Create an unconnected UDP socket bound to the local baseport */ 
+	/* for receiving L and P messages
+	/****************************************************************/
+	struct sockaddr_in uSocketAddr; 
+	uSocketAddr.sin_family = AF_INET;
+	uSocketAddr.sin_port = htons(receivingPort);
+
+	// Create datagram socket
+    if( (unconnectedSocket = socket(PF_INET, SOCK_DGRAM, 0)) <  0)
+    {
+        DieWithSystemMessage("\nsocket() failed"); 
+    }
+
+    // Bind socket to local port
+	if ((bind( unconnectedSocket, (struct sockaddr *)&uSocketAddr, sizeof(struct sockaddr_in) )) < 0 )
+    {
+        DieWithSystemMessage("\nbind() failed"); 
+    }
+
+    // Do I need to set the unconnected socket up to listen? 
+
 	/* Wait up to 30 seconds. */
    	tv.tv_sec = 15;
     tv.tv_usec = 0;
@@ -363,9 +387,13 @@ int main(int argc, char* argv[])
        		{
        			readyDescriptors -= 1; 
 
+       			char* tmpName = GetRouterName(servSock[i]);
+				memset(neighborName, 0, sizeof(neighborName)); 
+				strncpy(neighborName, tmpName, 1);
+
        			if(DEBUG)
        			{
-       				printf("\nSocket #%d is set in the servSock[] array. Processing socket #%d...", i, servSock[i]); 
+       				printf("\nProcessing socket #%d...Router %s", i, neighborName); 
        				if(readyDescriptors == 0)
        				{
        					printf("\nThat was your last ready descriptor!"); 
@@ -414,10 +442,7 @@ int main(int argc, char* argv[])
 
 					/**********************************************/
 					/* Data was received                          */
-					/**********************************************/
-					char* tmpName = GetRouterName(servSock[i]);
-					memset(neighborName, 0, sizeof(neighborName)); 
-					strncpy(neighborName, tmpName, 1); 
+					/**********************************************/ 
 					printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
 
 
@@ -475,7 +500,7 @@ int main(int argc, char* argv[])
 							}
 							break; 
 						case 'L':
-							printf("\nReceived link cost message: %s", messageBuffer); 
+							printf("\nReceived link-change message: %s", messageBuffer); 
 							char neighbor = messageBuffer[2]; 
 							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
 							successfullyProcessedUpdate = 1; 
@@ -491,7 +516,7 @@ int main(int argc, char* argv[])
 						{
 							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
 							printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
-							//SendRoutingTableToAllNeighbors(servSock); 
+							SendRoutingTableToAllNeighbors(servSock); 
 						}
 
 						break; 		// exit the receiving loop
