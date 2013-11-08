@@ -8,6 +8,7 @@
 #include "DieWithMessage.c"
 #include "router_utils.c"
 
+static int MAXPENDING = 5; 					// Maximum incoming connections 
 
 static int MAX_DESCRIPTOR = 0; 				// Highest file descriptor 
 
@@ -265,8 +266,11 @@ int main(int argc, char* argv[])
 	/* for receiving L and P messages
 	/****************************************************************/
 	struct sockaddr_in uSocketAddr; 
-	uSocketAddr.sin_family = AF_INET;
-	uSocketAddr.sin_port = htons(receivingPort);
+	memset(&uSocketAddr, 0, sizeof(uSocketAddr)); 			// zero out the address structure
+	uSocketAddr.sin_family = AF_INET;						// IPv4 address family 
+	uSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY); 		// any incoming interface
+	uSocketAddr.sin_port = htons(receivingPort);			// local port 
+
 
 	// Create datagram socket
     if( (unconnectedSocket = socket(PF_INET, SOCK_DGRAM, 0)) <  0)
@@ -274,13 +278,30 @@ int main(int argc, char* argv[])
         DieWithSystemMessage("\nsocket() failed"); 
     }
 
+    if(DEBUG)
+    	printf("\nSuccessfully created unconnected socket #%d for L and P messages.", unconnectedSocket); 
+
+    if(unconnectedSocket > MAX_DESCRIPTOR)
+   	{
+   		MAX_DESCRIPTOR = unconnectedSocket; 
+   		if(DEBUG)
+   			printf("\nUpdated MAX_DESCRIPTOR to %d", unconnectedSocket); 
+   	}
+
     // Bind socket to local port
 	if ((bind( unconnectedSocket, (struct sockaddr *)&uSocketAddr, sizeof(struct sockaddr_in) )) < 0 )
     {
         DieWithSystemMessage("\nbind() failed"); 
     }
 
-    // Do I need to set the unconnected socket up to listen? 
+    if(DEBUG)
+    	printf("\nSuccessfully bound unconnected socked #%d to baseport %d", unconnectedSocket, receivingPort); 
+
+
+    if(DEBUG)
+    {
+    	printf("\nSuccessfully setup unconnected socket #%d for L and P messages.", unconnectedSocket); 
+    }
 
 	/* Wait up to 30 seconds. */
    	tv.tv_sec = 15;
@@ -298,9 +319,13 @@ int main(int argc, char* argv[])
 			printf("\n     Router %s  ", router); 
 			printf("\n   Iteration %d ", iterationCounter++); 
 			printf("\n====================================="); 
+
+
 		}
 
 		PrintRoutingTable(); 
+
+
 			
 		successfullyProcessedUpdate = 0; 
 		updatedRoutingTable = 0; 
@@ -400,11 +425,7 @@ int main(int argc, char* argv[])
        				}
        			}
 
-       			
-
-       			
-
-   				
+   
 				printf("\nDescriptor %d is readable.", servSock[i]); 
 				/*************************************************/
 				/* Receive all incoming data on this socket      */
