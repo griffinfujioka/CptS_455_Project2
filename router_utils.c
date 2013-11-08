@@ -131,11 +131,17 @@ void SendRoutingTable(int socket)
 		ssize_t numBytes = send(socket, message, sizeof(message), 0); 
 
         if(numBytes < 0)
-            DieWithSystemMessage("send() failed"); 
-     	else if(numBytes != sizeof(message))
-            DieWithUserMessage("send()", "sent unexpected number of bytes"); 
+	    {
+	        printf("\nsend() failed with socket #%d", socket); 
+	        return; 
+	    }
+	    else if(numBytes != sizeof(message))
+	    {
+	        printf("\nsend(): sent unexpected number of bytes"); 
+	        return; 
+	    }
 
-         printf("\nSuccessfully sent a %zu byte update message to Router %s via socket #%d: %s\n", numBytes, receiverName, socket, message); 
+         printf("\nSuccessfully sent a %zu byte update message to Router %c via socket #%d: %s\n", numBytes, receiverName[0], socket, message); 
 	}
 
 }
@@ -180,7 +186,7 @@ void SendTestMessage(int socket)
 /* router is not already in the routing table, add it and return a pointer  	*/ 
 /* to it 																		*/ 
 /********************************************************************************/ 
-linkInfo* LookUpRouter(char* router)
+linkInfo* LookUpRouter(char* router, char* me)
 {
 	int i = 0; 
 
@@ -218,6 +224,8 @@ linkInfo* LookUpRouter(char* router)
 
 	}
 
+	/* TODO: If the router we're looking for is this router, return 	*/ 
+
 	/****************************************************/ 
 	/* We've looked through all of our routing table 	*/ 
 	/* and didn't find an entry for the provided router */ 
@@ -228,7 +236,9 @@ linkInfo* LookUpRouter(char* router)
 		printf("\nFailed to find entry for router in routing table... Adding an entry for Router %s at linkInfoTable[%d]", router, i); 
 	
 	printf(" 4"); 
-	strncpy(linkInfoTable[i+1].router, router, 1); 
+	linkInfoTable[linkcount].router = malloc(strlen(router)+1);
+	strncpy(linkInfoTable[linkcount].router, router, 1); 
+	linkInfoTable[linkcount].cost = 64; 		// Set to infinity 
 	linkcount += 1; 
 
 	printf("\nTesting for successful insert of Router %s", linkInfoTable[i+1].router); 

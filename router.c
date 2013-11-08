@@ -15,6 +15,8 @@ static int MAX_MESSAGE_SIZE = 1024;
 
 static int connectedNeighborSocket[MAXPAIRS]; 
 
+void SendRoutingTableToAllNeighbors(); 
+
 
 int main(int argc, char* argv[])
 {
@@ -54,6 +56,7 @@ int main(int argc, char* argv[])
     int end_connection = 0; 
     int close_conn = 0; 
     int successfullyProcessedUpdate = 0; 
+    int updatedRoutingTable = 0; 
 
     int on = 1; 
    
@@ -254,7 +257,8 @@ int main(int argc, char* argv[])
 			printf("\n====================================="); 
 		}
 			
-
+		successfullyProcessedUpdate = 0; 
+		updatedRoutingTable = 0; 
 		
 
 		/*************************************************/ 
@@ -305,11 +309,13 @@ int main(int argc, char* argv[])
        		{
        			printf("\nSince %zu seconds have elapsed, I will send my routing table to each of my neighbors", tv.tv_sec); 
        		}
+
+       		//SendTestMessage(servSock[i]); 
        		for(i=0; i < MAX_DESCRIPTOR + 1; i++)
        		{
        			if(servSock[i] != 0)
        			{
-       				SendTestMessage(servSock[i]); 
+       				SendRoutingTable(servSock[i]); 
        			}
        		}
        	}
@@ -339,7 +345,10 @@ int main(int argc, char* argv[])
        			if(DEBUG)
        			{
        				printf("\nSocket #%d is set in the servSock[] array. Processing socket #%d...", i, servSock[i]); 
-       				printf("\nThere are %d ready descriptors left.", readyDescriptors); 
+       				if(readyDescriptors == 0)
+       				{
+       					printf("\nThat was your last ready descriptor!"); 
+       				}
        			}
 
        			
@@ -360,21 +369,16 @@ int main(int argc, char* argv[])
 					/* failure occurs, we will close the          */
 					/* connection.                                */
 					/**********************************************/
-					printf("\n1"); 
 					numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
-					printf(" 2"); 
 					if (numBytes < 0)
 					{
 					 if (errno != EWOULDBLOCK)
 					 {
-					    perror("  recv() failed");
-					    printf(" 4"); 
-					    close_conn = 1;
-					    printf(" 5"); 
+					    perror("recv() failed"); 
+					    //close_conn = 1;
 					 }
 					 break;
 					}
-					printf(" 3"); 
 
 					/**********************************************/
 					/* Check to see if the connection has been    */
@@ -411,10 +415,26 @@ int main(int argc, char* argv[])
 							printf("\nDestination: %c // Cost: %d", dest, cost); 
 							successfullyProcessedUpdate = 1; 
 
-							/* What exactly do I update when I receive an update message? */ 
-							linkInfo* link = LookUpRouter(&dest); 
+							if(strncmp(&dest, router, 1) == 0)
+							{
+								if(DEBUG)
+								{
+									printf("\nI don't want to look for myself in my own routing table!"); 
+									successfullyProcessedUpdate = 1; 
+									updatedRoutingTable = 1; 
+								}
+								break; 
+							}
 
-							if(link->cost != cost)
+							linkInfo* link = LookUpRouter(&dest, router); 
+
+
+							/************************************************************/
+							/* If link->cost != cost, then we must update the table 	*/  
+							/* If link->cost == 64, that indicates we had to add the new*/ 
+							/* router to the table, hence updating it. 					*/ 
+							/************************************************************/
+							if(link->cost != cost || link->cost == 64)
 							{
 								/* We must update the routing table and send updates! 	*/ 
 								link->cost = cost; 
@@ -423,6 +443,8 @@ int main(int argc, char* argv[])
 
 								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
 									router, dest, link->cost, 0); 
+
+								updatedRoutingTable = 1; 
 							}
 							break; 
 						case 'L':
@@ -436,34 +458,18 @@ int main(int argc, char* argv[])
 							break; 
 					}
 
-					if(successfullyProcessedUpdate)
+					if(successfullyProcessedUpdate && updatedRoutingTable)
 					{
 						if(DEBUG)
 						{
 							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
 							printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
-							SendRoutingTable(servSock[i]); 
+							//SendRoutingTableToAllNeighbors(servSock); 
 						}
 
 						break; 		// exit the receiving loop
 					}
 					
-
-					/**********************************************/
-					/* Echo the data back to the client           */
-					/**********************************************/
-					// numBytes = send(servSock[i], messageBuffer, numBytes, 0);
-					// if (numBytes < 0)
-					// {
-					//  perror("  send() failed");
-					//  close_conn = 1;
-					//  break;
-					// }
-					// else if(numBytes == 24)
-					// {
-					// 	// We received the expected amount of bytes
-					// 	break; 
-					// }
 
 				} while (1);
 
@@ -479,7 +485,7 @@ int main(int argc, char* argv[])
                if (close_conn)
                {
 
-                	servSock[i] = 0; 
+                	//servSock[i] = 0; 
 
                		if(DEBUG)
                		{
@@ -515,8 +521,6 @@ int main(int argc, char* argv[])
        	} /* End of loop through selectable descriptors */
 
 
-       				
-
        			
 
 	} while(end_connection == 0);
@@ -529,5 +533,18 @@ int main(int argc, char* argv[])
 
 	
 	return 0; 
+}
+
+void  SendRoutingTableToAllNeighbors(int servSock[])
+{
+	int i = 0; 
+
+	for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+	{
+		if(servSock[i] != 0)
+		{
+			SendRoutingTable(servSock[i]); 
+		}
+	}
 }
 
