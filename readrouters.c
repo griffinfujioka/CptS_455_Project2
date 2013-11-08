@@ -30,6 +30,11 @@ static neighborSocket neighborSocketArray[MAXPAIRS];
 // Count to store the number of neighbor-socket pairs
 static int count = 0;
 
+// Routing table 
+static routingTableEntry routingTable[MAXROUTERS]; 
+// Count to store the number of entries in the routing table
+static int routingTableEntries = 0; 
+
 /*************************************************************
    This function reads the router information from a file
    and populates the routerInfoTable.

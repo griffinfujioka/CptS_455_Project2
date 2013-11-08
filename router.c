@@ -17,6 +17,8 @@ static int connectedNeighborSocket[MAXPAIRS];
 
 void SendRoutingTableToAllNeighbors(); 
 
+void PrintRoutingTable(); 
+
 
 int main(int argc, char* argv[])
 {
@@ -172,6 +174,15 @@ int main(int argc, char* argv[])
 		if(routerLinks->cost == 0)
 			break; 
 
+		int cost = routerLinks->cost; 
+		printf("\nCost = %d", cost); 
+
+		routingTable[routingTableEntries].dest =  malloc(strlen(routerLinks->router)+1);
+		strncpy(routingTable[routingTableEntries].dest, routerLinks->router, 1); 
+		routingTable[routingTableEntries].cost = cost;
+		routingTable[routingTableEntries].nextHop = malloc(strlen(routerLinks->router)+1); 
+		strncpy(routingTable[routingTableEntries].nextHop, routerLinks->router, 1); 
+		
 		if(DEBUG)
 		{
 			printf("\n%d.", i + 1); 
@@ -180,7 +191,15 @@ int main(int argc, char* argv[])
 			printf("\nLocal link: %d", routerLinks->locallink); 
 			printf("\nRemote link: %d", routerLinks->remotelink); 
 			printf("\n"); 
+			printf("\nSuccessfully added %s to my routing table with cost=%d and next hop= Router %s",
+			routingTable[routingTableEntries].dest, routingTable[routingTableEntries].cost, routingTable[routingTableEntries].nextHop); 
+			printf("\nThere are now %d entries in my routing table", routingTableEntries + 1); 
 		}
+
+		routingTableEntries += 1; 
+
+		
+
 		
 		i++; 
 
@@ -256,6 +275,8 @@ int main(int argc, char* argv[])
 			printf("\n   Iteration %d ", iterationCounter++); 
 			printf("\n====================================="); 
 		}
+
+		PrintRoutingTable(); 
 			
 		successfullyProcessedUpdate = 0; 
 		updatedRoutingTable = 0; 
@@ -426,7 +447,7 @@ int main(int argc, char* argv[])
 								break; 
 							}
 
-							linkInfo* link = LookUpRouter(&dest, router); 
+							routingTableEntry* entry = LookUpRouter(&dest, router); 
 
 
 							/************************************************************/
@@ -434,15 +455,15 @@ int main(int argc, char* argv[])
 							/* If link->cost == 64, that indicates we had to add the new*/ 
 							/* router to the table, hence updating it. 					*/ 
 							/************************************************************/
-							if(link->cost != cost || link->cost == 64)
+							if(entry->cost != cost || entry->cost == 64)
 							{
 								/* We must update the routing table and send updates! 	*/ 
-								link->cost = cost; 
-								link->locallink = 0; 
-								link->remotelink = 0; 
+								entry->cost = cost; 
+
+								/* Calculate next hop 				*/ 
 
 								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
-									router, dest, link->cost, 0); 
+									router, dest, entry->cost, 0); 
 
 								updatedRoutingTable = 1; 
 							}
@@ -545,6 +566,19 @@ void  SendRoutingTableToAllNeighbors(int servSock[])
 		{
 			SendRoutingTable(servSock[i]); 
 		}
+	}
+}
+
+
+void PrintRoutingTable()
+{
+	int i = 0; 
+	printf("\nMy Routing Table: "); 
+	printf("\nDestination\tCost\tNext Hop"); 
+	for(i=0; i < routingTableEntries; i++)
+	{
+		printf("\n%s\t\t%d\t%s", 
+			routingTable[i].dest, routingTable[i].cost, routingTable[i].nextHop); 
 	}
 }
 

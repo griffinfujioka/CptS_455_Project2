@@ -186,7 +186,7 @@ void SendTestMessage(int socket)
 /* router is not already in the routing table, add it and return a pointer  	*/ 
 /* to it 																		*/ 
 /********************************************************************************/ 
-linkInfo* LookUpRouter(char* router, char* me)
+routingTableEntry* LookUpRouter(char* router, char* me)
 {
 	int i = 0; 
 
@@ -196,35 +196,53 @@ linkInfo* LookUpRouter(char* router, char* me)
 	}
 
 	linkInfo* tmpLink = &linkInfoTable[i]; 
+	routingTableEntry* entry = &routingTable[i]; 
 
-	for(i=0; i < linkcount - 1; i++)
+	for(i=0; i < routingTableEntries; i++)
 	{
-		printf("\nLooking at linkInfoTable[%d]", i); 
-		tmpLink = &linkInfoTable[i]; 
+		entry = &routingTable[i]; 
 
-		printf("\n 1"); 
-		if(tmpLink == 0)
-			break; 				// exit the for loop 
+		if(entry == 0)
+			break; 
 
-		printf(" 2"); 
-		if(tmpLink->cost == 0 || tmpLink->router == 0)
-			break; 				// exit the for loop
-
-		printf(" 3"); 
-		if(strncmp(tmpLink->router, router, 1) == 0)
+		if(strncmp(entry->dest, router, 1) == 0)
 		{
-			printf(" 3.1"); 
 			if(DEBUG)
 			{
 				printf("\nRouter %s is already in my routing table at linkInfoTable[%d]", router,i); 
 			}
-			return &linkInfoTable[i]; 
+
+			return &routingTable[i]; 
 		}
-
-
 	}
 
-	/* TODO: If the router we're looking for is this router, return 	*/ 
+	// for(i=0; i < linkcount - 1; i++)
+	// {
+	// 	printf("\nLooking at linkInfoTable[%d]", i); 
+	// 	tmpLink = &linkInfoTable[i]; 
+
+	// 	printf("\n 1"); 
+	// 	if(tmpLink == 0)
+	// 		break; 				// exit the for loop 
+
+	// 	printf(" 2"); 
+	// 	if(tmpLink->cost == 0 || tmpLink->router == 0)
+	// 		break; 				// exit the for loop
+
+	// 	printf(" 3"); 
+	// 	if(strncmp(tmpLink->router, router, 1) == 0)
+	// 	{
+	// 		printf(" 3.1"); 
+	// 		if(DEBUG)
+	// 		{
+	// 			printf("\nRouter %s is already in my routing table at linkInfoTable[%d]", router,i); 
+	// 		}
+	// 		return &linkInfoTable[i]; 
+	// 	}
+
+
+	// }
+
 
 	/****************************************************/ 
 	/* We've looked through all of our routing table 	*/ 
@@ -241,9 +259,16 @@ linkInfo* LookUpRouter(char* router, char* me)
 	linkInfoTable[linkcount].cost = 64; 		// Set to infinity 
 	linkcount += 1; 
 
-	printf("\nTesting for successful insert of Router %s", linkInfoTable[i+1].router); 
+	routingTable[routingTableEntries].dest = malloc(strlen(router)+1); 
+	strncpy(routingTable[routingTableEntries].dest, router, 1); 
+	routingTable[routingTableEntries].cost = 64; 
 
-	return &linkInfoTable[i+1];
+	routingTableEntries += 1; 
+
+	printf("\nTesting for successful insert of Router %s", routingTable[i+1].dest); 
+
+	//return &linkInfoTable[i+1];
+	return &routingTable[i+1]; 
 
 
 }

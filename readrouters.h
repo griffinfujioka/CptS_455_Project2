@@ -25,6 +25,17 @@ typedef struct NeighborSocket
 	int socket;
 } neighborSocket;
 
+// Structure to store an entry in the routing table 
+typedef struct RoutingTableEntry
+{
+	char* dest; 		// Name of the other router in the network 
+	int cost; 		// Estimated cost to the destination router 
+	char* nextHop; 		// The router we'd go to just before arriving at destination router 
+	/* The Next Hop router is the router which satisfies v in the Bellman-Ford equation 	*/ 
+	/* That is, the router which results in the least-cost path from this router instance   */ 
+	/* to our destination router 															*/ 
+} routingTableEntry; 
+
 // Function  to read the router information from a file
 // and return a pointer to the routerInfoTable.
 routerInfo* readrouters(char* path);
