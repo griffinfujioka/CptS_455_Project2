@@ -247,19 +247,6 @@ int main(int argc, char* argv[])
 		i++; 
 	}
 
-	/***********************************************/ 
-	/* Print out all the sockets in servSock array */ 
-	/***********************************************/ 
-	if(DEBUG)
-	{
-		for(i=0; i < MAX_DESCRIPTOR + 1; i++)
-		{
-			printf("\nservSock[%d] : %d", i, servSock[i]); 
-		}
-
-		printf("\nHighest file descriptor = %d", MAX_DESCRIPTOR); 
-	}
-
 	/****************************************************************/
 	/* TODO:														*/ 
 	/* Create an unconnected UDP socket bound to the local baseport */ 
@@ -281,9 +268,14 @@ int main(int argc, char* argv[])
     if(DEBUG)
     	printf("\nSuccessfully created unconnected socket #%d for L and P messages.", unconnectedSocket); 
 
+
+    /* Do we need to put the unconnected socket in our set of file descriptors? 	*/ 
     if(unconnectedSocket > MAX_DESCRIPTOR)
    	{
    		MAX_DESCRIPTOR = unconnectedSocket; 
+
+   		// Add the unconnectedSocket to the servSock[] array 	 
+   		servSock[MAX_DESCRIPTOR] = unconnectedSocket;
    		if(DEBUG)
    			printf("\nUpdated MAX_DESCRIPTOR to %d", unconnectedSocket); 
    	}
@@ -302,6 +294,19 @@ int main(int argc, char* argv[])
     {
     	printf("\nSuccessfully setup unconnected socket #%d for L and P messages.", unconnectedSocket); 
     }
+
+    /***********************************************/ 
+	/* Print out all the sockets in servSock array */ 
+	/***********************************************/ 
+	if(DEBUG)
+	{
+		for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+		{
+			printf("\nservSock[%d] : %d", i, servSock[i]); 
+		}
+
+		printf("\nHighest file descriptor = %d", MAX_DESCRIPTOR); 
+	}
 
 	/* Wait up to 30 seconds. */
    	tv.tv_sec = 15;
@@ -381,7 +386,7 @@ int main(int argc, char* argv[])
        		}
 
        		//SendTestMessage(servSock[i]); 
-       		for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+       		for(i=0; i < MAX_DESCRIPTOR; i++)
        		{
        			if(servSock[i] != 0)
        			{
@@ -398,7 +403,7 @@ int main(int argc, char* argv[])
        	/************************************************************/ 
        	/* Iterate through all selectable file descriptors 		*/ 
        	/************************************************************/
-       	for(i=0; i<= MAX_DESCRIPTOR + 1 && readyDescriptors > 0; ++i)
+       	for(i=0; i<= MAX_DESCRIPTOR - 1 && readyDescriptors > 0; ++i)
        	{
 
        		memset(messageBuffer, 0, sizeof(messageBuffer));
@@ -407,10 +412,11 @@ int main(int argc, char* argv[])
        		{
        			printf("\n-- Iteration %d.%d -- ", iterationCounter,i); 
        		}
-       		/* Doesn't seem like FD_ISSSET is working as assumed */ 
+       		 
        		if(FD_ISSET(servSock[i], &rfds))
        		{
        			readyDescriptors -= 1; 
+
 
        			char* tmpName = GetRouterName(servSock[i]);
 				memset(neighborName, 0, sizeof(neighborName)); 
@@ -612,7 +618,7 @@ void  SendRoutingTableToAllNeighbors(int servSock[])
 {
 	int i = 0; 
 
-	for(i=0; i < MAX_DESCRIPTOR + 1; i++)
+	for(i=0; i < MAX_DESCRIPTOR - 1; i++)
 	{
 		if(servSock[i] != 0)
 		{
