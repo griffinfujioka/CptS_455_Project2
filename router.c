@@ -496,7 +496,22 @@ int main(int argc, char* argv[])
 					char messageType = messageBuffer[0];
 
 					// TODO: Fix this calculation to accomodate costs of 2 digits 
-					int cost = 0; //messageBuffer[4] - '0'; 
+					int cost = messageBuffer[4] - '0'; 
+					// Calculate cost
+					int t = 5; 
+					while(messageBuffer[t] != '\0')
+					{
+						cost *= 10; 
+						cost += messageBuffer[t] - '0'; 
+						printf("\nCost = %d", cost); 
+						t++; 
+					}
+
+					printf("\nCost = %d", cost); 
+
+
+
+					
 
 					
 

@@ -122,13 +122,15 @@ void SendRoutingTable(int socket)
 
 		snprintf(message, sizeof(message), "U %C %d", dest[0], cost);
 
+		message[strlen(message)] = '\0'; 
+
 
 		// for each of the connections, receive: 
 		// 		- Router update messages: U dest cost 
 		// 		- Link cost messages: L neighbor cost 
 		// If neighborSock = -1 then connect() failed above 
 		// printf("\nAttempting to send an update message...");
-		ssize_t numBytes = send(socket, message, sizeof(message), 0); 
+		ssize_t numBytes = send(socket, message, strlen(message), 0); 
 
         if(numBytes < 0)
 	    {
