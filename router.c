@@ -106,10 +106,10 @@ int main(int argc, char* argv[])
 	for(i=0; i < MAXROUTERS; i++)
 	{
 		routingTable[i].dest = malloc(1); 
-		routingTable[i].dest = '-'; 
+		routingTable[i].dest = "-"; 
 		routingTable[i].cost = 0; 
 		routingTable[i].nextHop = malloc(1);
-		routingTable[i].nextHop = '-'; 
+		routingTable[i].nextHop = "-"; 
 
 	}
 
@@ -202,11 +202,13 @@ int main(int argc, char* argv[])
 		/********************************************************************************/ 
 		/* Initialize routing table using information provided to us by our neighbors 	*/ 
 		/********************************************************************************/ 
-		routingTable[routingTableEntries].dest =  malloc(strlen(routerLinks->router));
+		routingTable[routingTableEntries].dest =  malloc(strlen(routerLinks->router)+1);
 		strncpy(routingTable[routingTableEntries].dest, routerLinks->router, 1); 
+		routingTable[routingTableEntries].dest[1] = '\0'; 
 		routingTable[routingTableEntries].cost = cost;
-		routingTable[routingTableEntries].nextHop = malloc(strlen(routerLinks->router)); 
+		routingTable[routingTableEntries].nextHop = malloc(strlen(routerLinks->router)+1); 
 		strncpy(routingTable[routingTableEntries].nextHop, routerLinks->router, 1); 
+		routingTable[routingTableEntries].nextHop[1] = '\0'; 
 		
 		if(DEBUG)
 		{
