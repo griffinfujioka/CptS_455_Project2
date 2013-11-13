@@ -55,12 +55,12 @@ int main(int argc, char* argv[])
     struct sockaddr_in neighborAddr;    // buffer for addresses neighboring router
     int neighborSock; 					// socket for neighboring router 
     socklen_t neighborAddrLength = sizeof(neighborAddr);	// Set length of client address structure (in-out parameter)
-    char neighborName[1]; 
-    int iterationCounter = 1; 
-    int end_connection = 0; 
-    int close_conn = 0; 
-    int successfullyProcessedUpdate = 0; 
-    int updatedRoutingTable = 0; 
+    char neighborName[1]; 				// buffer for the name of the neighbor we're communicating with 
+    int iterationCounter = 1; 			// count the number of times the infinite loops has run 
+    int end_connection = 0; 			
+    int close_conn = 0; 				// Used as a flag for cleaning up connections 
+    int successfullyProcessedUpdate = 0; // After receiving an update and successfully modifying our routing table, this flag is set 
+    int updatedRoutingTable = 0; 		// Used to denote whether or not an update actually caused us to update our table 
 
     int on = 1; 
    
@@ -101,8 +101,6 @@ int main(int argc, char* argv[])
 	/* Read the links for this router 	*/  
 	/************************************/ 
 	routerLinks = readlinks(directory, router); 
-
-	// Should I initialize my routing table here or am I good to go?  
 
 	/****************************************************************/ 
 	/* Create connected datagram sockets for talking to neighbors  	*/ 
@@ -152,7 +150,7 @@ int main(int argc, char* argv[])
 			receivingPort = routerConfiguration->baseport;
 			if(DEBUG)
 			{
-				// Set our baseport so we can bind a socket to it later 
+				// Set our baseport so we can bind to an unconnected socket to it later 
 				printf("\nMy name is %s and my host is %s", routerConfiguration->router, routerConfiguration->host); 
 				printf("\nSet my baseport to %d\n", routerConfiguration->baseport); 
 			}
@@ -177,8 +175,10 @@ int main(int argc, char* argv[])
 			break; 
 
 		int cost = routerLinks->cost; 
-		printf("\nCost = %d", cost); 
 
+		/********************************************************************************/ 
+		/* Initialize routing table using information provided to us by our neighbors 	*/ 
+		/********************************************************************************/ 
 		routingTable[routingTableEntries].dest =  malloc(strlen(routerLinks->router)+1);
 		strncpy(routingTable[routingTableEntries].dest, routerLinks->router, 1); 
 		routingTable[routingTableEntries].cost = cost;
@@ -248,7 +248,6 @@ int main(int argc, char* argv[])
 	}
 
 	/****************************************************************/
-	/* TODO:														*/ 
 	/* Create an unconnected UDP socket bound to the local baseport */ 
 	/* for receiving L and P messages
 	/****************************************************************/
@@ -259,7 +258,7 @@ int main(int argc, char* argv[])
 	uSocketAddr.sin_port = htons(receivingPort);			// local port 
 
 
-	// Create datagram socket
+	/* Create the datagram socket 	*/ 
     if( (unconnectedSocket = socket(PF_INET, SOCK_DGRAM, 0)) <  0)
     {
         DieWithSystemMessage("\nsocket() failed"); 
@@ -268,8 +267,6 @@ int main(int argc, char* argv[])
     if(DEBUG)
     	printf("\nSuccessfully created unconnected socket #%d for L and P messages.", unconnectedSocket); 
 
-
-    /* Do we need to put the unconnected socket in our set of file descriptors? 	*/ 
     if(unconnectedSocket > MAX_DESCRIPTOR)
    	{
    		MAX_DESCRIPTOR = unconnectedSocket; 
@@ -280,7 +277,7 @@ int main(int argc, char* argv[])
    			printf("\nUpdated MAX_DESCRIPTOR to %d", unconnectedSocket); 
    	}
 
-    // Bind socket to local port
+    /* Bind socket to the local port 	*/ 
 	if ((bind( unconnectedSocket, (struct sockaddr *)&uSocketAddr, sizeof(struct sockaddr_in) )) < 0 )
     {
         DieWithSystemMessage("\nbind() failed"); 
@@ -340,20 +337,22 @@ int main(int argc, char* argv[])
         /* Copy the masterFD_Set over to the temp FD set */ 
         /*************************************************/
         FD_ZERO(&rfds);
-        //memcpy(&rfds, &masterFD_Set, sizeof(masterFD_Set));
 
+
+        /************************************************************/ 
+        /* Set all sockets in the temporary file descriptor set 	*/ 
+        /************************************************************/ 
         for(i=0; i < MAX_DESCRIPTOR + 1; i++)
         {
         	if(servSock[i] != 0)
         	{
-        		FD_SET(servSock[i], &rfds); 
-        		//SendTestMessage(servSock[i]); 
+        		FD_SET(servSock[i], &rfds);  
         		printf("\nSet socket #%d", servSock[i]); 
         	}
         		
         }
 
-         /* Wait up to 30 seconds. */
+        /* Wait up to 30 seconds. */
    		tv.tv_sec = 15;
        	tv.tv_usec = 0;
 
@@ -372,20 +371,20 @@ int main(int argc, char* argv[])
        	if(retval < 0)
        	{
        		printf("select() failed"); 
-       		//continue; 		// go back to the beginning of the infinite loop
        	}
        	else if(retval == 0)
        	{
        		printf("select() timed out"); 
-       		//continue; 		// go back to the beginning of the infinite loop
 
-       		// Should I send the 30 second updates in here? 
        		if(DEBUG)
        		{
        			printf("\nSince %zu seconds have elapsed, I will send my routing table to each of my neighbors", tv.tv_sec); 
        		}
 
-       		//SendTestMessage(servSock[i]); 
+       		/************************************************************/ 
+       		/* Since select timed out, meaning 30 seconds has passed 	*/ 
+       		/* send your routing table to all of your neighbors 		*/ 
+       		/************************************************************/ 
        		for(i=0; i < MAX_DESCRIPTOR; i++)
        		{
        			if(servSock[i] != 0)
@@ -410,7 +409,7 @@ int main(int argc, char* argv[])
 
        		if(DEBUG)
        		{
-       			printf("\n-- Iteration %d.%d -- ", iterationCounter,i); 
+       			printf("\n-- Iteration %d.%d --", iterationCounter,i, (MAX_DESCRIPTOR - 1)); 
        		}
        		 
        		if(FD_ISSET(servSock[i], &rfds))
@@ -425,6 +424,7 @@ int main(int argc, char* argv[])
        			if(DEBUG)
        			{
        				printf("\nProcessing socket #%d...Router %s", i, neighborName); 
+
        				if(readyDescriptors == 0)
        				{
        					printf("\nThat was your last ready descriptor!"); 
@@ -432,7 +432,7 @@ int main(int argc, char* argv[])
        			}
 
    
-				printf("\nDescriptor %d is readable.", servSock[i]); 
+				
 				/*************************************************/
 				/* Receive all incoming data on this socket      */
 				/* before we loop back and call select again.    */
@@ -451,7 +451,6 @@ int main(int argc, char* argv[])
 					 if (errno != EWOULDBLOCK)
 					 {
 					    perror("recv() failed"); 
-					    //close_conn = 1;
 					 }
 					 break;
 					}
@@ -466,6 +465,8 @@ int main(int argc, char* argv[])
 					 close_conn = 1;
 					 break;
 					}
+
+					printf("\nDescriptor %d is readable.", servSock[i]); 
 
 					/**********************************************/
 					/* Data was received                          */
@@ -513,13 +514,11 @@ int main(int argc, char* argv[])
 								if(cost < entry->cost)
 								{
 									entry->cost = cost; 
-									//entry->nextHop = malloc(strlen(dest)+1); 
 									strncpy(entry->nextHop, neighborName, 1); 
 								}
 									
 
 								/* Calculate next hop 				*/ 
-
 								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
 									router, dest, entry->cost, 0); 
 
@@ -531,6 +530,7 @@ int main(int argc, char* argv[])
 							char neighbor = messageBuffer[2]; 
 							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
 							successfullyProcessedUpdate = 1; 
+							updatedRoutingTable = 1; 
 							break; 
 						default: 
 							printf("\nReceived a message from Router %s, but I have no idea how to process it", neighborName); 
@@ -553,7 +553,7 @@ int main(int argc, char* argv[])
 				} while (1);
 
                /*************************************************/
-               /* If the close_conn flag was turned on, we need */
+               /* If the close_conn flag was set, we need 		*/
                /* to clean up this active connection.  This     */
                /* clean up process includes removing the        */
                /* descriptor from the master set and            */
@@ -563,9 +563,6 @@ int main(int argc, char* argv[])
                /*************************************************/
                if (close_conn)
                {
-
-                	//servSock[i] = 0; 
-
                		if(DEBUG)
                		{
                			printf("\nClose Connection Flag Thrown!"); 
@@ -577,7 +574,9 @@ int main(int argc, char* argv[])
                   		{
                   			printf("\nAhhhh boy... we must update MAX_DESCRIPTOR!\n"); 
                   		}
+
                   		int j;
+                  		
                   		for(j = MAX_DESCRIPTOR - 1; j >= 0 && servSock[j] > 0; j--)
                   		{
                   			printf(" %d", j); 
