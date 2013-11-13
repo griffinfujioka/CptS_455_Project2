@@ -20,6 +20,8 @@ void SendRoutingTableToAllNeighbors();
 
 void PrintRoutingTable(); 
 
+void PrintRoutingTableEntry(char* dest); 
+
 int GetCostToNeighbor(char* neighbor); 
 
 void UpdateLinkInfo(char* neighbor, int cost); 
@@ -589,7 +591,22 @@ int main(int argc, char* argv[])
 							updatedRoutingTable = 1; 
 							break; 
 						case 'P': 
-							printf("\nReceived P message"); 
+							printf("\nReceived P message: %s", messageBuffer); 
+
+							/* Start looking for a destination router at index 1. If messageBuffer[1] is NULL 		*/ 
+							/* then we can assume now destination is provided, and print our entire routing table.	*/
+							int i = messageBuffer[1]; 	
+
+							while(messageBuffer[i] != '\0')
+							{
+								i++; 
+							}
+
+							if(i == 1)
+								PrintRoutingTable(); 			// Print this router's routing table 
+							else if(i == 2)
+								PrintRoutingTableEntry(&messageBuffer[i]); 		// Print the routing table entry for messageBuffer[i], the destination 
+
 							break; 
 						default: 
 							printf("\nReceived a message from Router %s, but what kind of message is %d?", neighborName, messageType); 
@@ -693,6 +710,22 @@ void PrintRoutingTable()
 	{
 		printf("\n%s\t\t%d\t%s", 
 			routingTable[i].dest, routingTable[i].cost, routingTable[i].nextHop); 
+	}
+}
+
+void PrintRoutingTableEntry(char* dest)
+{
+	int i = 0; 
+
+	printf("\nDestination\tCost\tNext Hop"); 
+	for(i=0; i < routingTableEntries; i++)
+	{
+		if(strncmp(dest, routingTable[i].dest, 1) == 0)
+		{
+			printf("\n%s\t\t%d\t%s", 
+				routingTable[i].dest, routingTable[i].cost, routingTable[i].nextHop); 
+			return; 
+		}
 	}
 }
 
