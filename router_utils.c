@@ -137,7 +137,7 @@ void SendRoutingTable(int socket)
 	        printf("\nsend() failed with socket #%d", socket); 
 	        return; 
 	    }
-	    else if(numBytes != sizeof(message))
+	    else if(numBytes != strlen(message))
 	    {
 	        printf("\nsend(): sent unexpected number of bytes"); 
 	        return; 
@@ -211,7 +211,7 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 		{
 			if(DEBUG)
 			{
-				printf("\nRouter %s is already in my routing table at linkInfoTable[%d]", router,i); 
+				printf("\nRouter %s is already in my routing table at linkInfoTable[%d] with cost %d", router,i, entry->cost); 
 			}
 
 			return &routingTable[i]; 

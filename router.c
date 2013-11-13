@@ -20,6 +20,12 @@ void SendRoutingTableToAllNeighbors();
 
 void PrintRoutingTable(); 
 
+int GetCostToNeighbor(char* neighbor); 
+
+void UpdateLinkInfo(char* neighbor, int cost); 
+
+void UpdateRoutingTable(char* neighbor, int cost); 
+
 
 int main(int argc, char* argv[])
 {
@@ -503,13 +509,10 @@ int main(int argc, char* argv[])
 					{
 						cost *= 10; 
 						cost += messageBuffer[t] - '0'; 
-						printf("\nCost = %d", cost); 
 						t++; 
 					}
 
-					printf("\nCost = %d", cost); 
-
-
+					int costToNeighbor = GetCostToNeighbor(neighborName); 
 
 					
 
@@ -518,10 +521,10 @@ int main(int argc, char* argv[])
 					switch(messageType)
 					{
 						case 'U':
+							printf("\nCost to neighbor %s: %d", neighborName, costToNeighbor); 
 							printf("\nReceived router update message: %s", messageBuffer); 
 							char dest = messageBuffer[2]; 
 							printf("\nDestination: %c // Cost: %d", dest, cost); 
-							successfullyProcessedUpdate = 1; 
 
 							if(strncmp(&dest, router, 1) == 0)
 							{
@@ -538,36 +541,50 @@ int main(int argc, char* argv[])
 
 
 							/************************************************************/
-							/* TODO: Fix the logic here 								*/ 
+							/* The U message contains the cost of getting from the 		*/ 
+							/* sending router to the destination router. Therefore 		*/ 
+							/* The cost of getting from this router instance to the  	*/ 
+							/* destination router must include the cost of the link from*/ 
+							/* this router to the sending router. 						*/ 
+							/*															*/ 
 							/* If link->cost != cost, then we must update the table 	*/  
 							/* If link->cost == 64, that indicates we had to add the new*/ 
 							/* router to the table, hence updating it. 					*/ 
+							/* 															*/ 
+							/* Some cases left to consider and cover: 					*/ 
+							/* 		(i) Consider the cost of using other neighbors by 	*/ 
+							/* 			having their DVs saved and comparing the cost 	*/ 
+							/* 			of using them instead. 							*/ 
+							/* 		(ii) What happens if the cost changes for the 		*/ 
+							/* 			router we're currently using as next hop? 		*/ 
 							/************************************************************/
 							if(entry->cost != cost || entry->cost == 64)
 							{
 								/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
-								if(cost < entry->cost)
+								if((costToNeighbor + cost) < entry->cost)
 								{
-									entry->cost = cost; 
+									entry->cost = costToNeighbor + cost; 
 									strncpy(entry->nextHop, neighborName, 1); 
 								}
 									
 
-								/* Calculate next hop 				*/ 
-								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
-									router, dest, entry->cost, 0); 
+								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %s", 
+									router, dest, entry->cost, entry->nextHop); 
 
 								updatedRoutingTable = 1; 
 							}
+
+							successfullyProcessedUpdate = 1; 
 							break; 
 						case 'L':
 							printf("\nReceived L message: %s", messageBuffer); 
 							char neighbor = messageBuffer[2]; 
 							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
 
-							/********************************************************************************************/ 
-							/* TODO: Add logic here for changing the link or updating the routing table if necessary 	*/ 
-							/********************************************************************************************/ 
+							UpdateLinkInfo(&neighbor, cost); 
+
+							UpdateRoutingTable(&neighbor, cost); 
+
 							successfullyProcessedUpdate = 1; 
 							updatedRoutingTable = 1; 
 							break; 
@@ -676,6 +693,75 @@ void PrintRoutingTable()
 	{
 		printf("\n%s\t\t%d\t%s", 
 			routingTable[i].dest, routingTable[i].cost, routingTable[i].nextHop); 
+	}
+}
+
+int GetCostToNeighbor(char* neighbor)
+{
+	linkInfo* routerLink; 
+
+	int i = 0; 
+
+	while(i < MAXLINKS)
+	{
+		routerLink = &linkInfoTable[i]; 
+
+		if(routerLink->cost == 0)
+			break; 
+
+		if(strncmp(neighbor, routerLink->router, 1) == 0)
+		{
+			int cost = routerLink->cost;
+			printf("\nFound the cost of neighboring router %s to be %d", neighbor, cost); 
+			return cost; 
+		}
+
+		i++; 
+
+		
+	}
+}
+
+
+void UpdateLinkInfo(char* neighbor, int cost)
+{
+	linkInfo* routerLink; 
+
+	int i = 0; 
+
+	printf("\nUpdating link info for router %s to cost %d", neighbor, cost); 
+
+	while(i < MAXLINKS)
+	{
+		routerLink = &linkInfoTable[i]; 
+
+		if(routerLink->cost == 0)
+			break; 
+
+		if(strncmp(neighbor, routerLink->router, 1) == 0)
+		{
+			routerLink->cost = cost; 
+			printf("\nUpdated the cost of the link to neighbor %s to %d in my link info table", neighbor, cost); 
+			return; 
+		}
+
+		i++; 
+
+		
+	}
+}
+
+void UpdateRoutingTable(char* neighbor, int cost)
+{
+	int i = 0; 
+	for(i=0; i < routingTableEntries; i++)
+	{
+		if(strncmp(neighbor, routingTable[i].dest, 1) == 0)
+		{
+			routingTable[i].cost = cost; 
+			printf("\nUpdated the cost of the link to neighbor %s to %d in my routing table", neighbor, cost); 
+			return; 
+		}
 	}
 }
 
