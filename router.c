@@ -270,6 +270,8 @@ int main(int argc, char* argv[])
     // Add the unconnectedSocket to the servSock[] array 	 
    	servSock[unconnectedSocket] = unconnectedSocket;
 
+
+   	/* Update MAX_DESCRIPTOR if the unconnectedSocket is greater 	*/ 
     if(unconnectedSocket > MAX_DESCRIPTOR)
    	{
    		MAX_DESCRIPTOR = unconnectedSocket; 
@@ -408,7 +410,8 @@ int main(int argc, char* argv[])
 	       	/************************************************************/ 
 	       	/* Iterate through all selectable file descriptors 		*/ 
 	       	/************************************************************/
-	       	for(i=0; i<= count - 1; ++i)
+	       	printf("\ncount = %d", count); 
+	       	for(i=0; i<= MAXROUTERS - 1; ++i)
 	       	{
 
 	       		memset(messageBuffer, 0, sizeof(messageBuffer));
@@ -422,14 +425,22 @@ int main(int argc, char* argv[])
 	       		{
 	       			readyDescriptors -= 1; 
 
+	       			char* tmpName; 
 
-	       			char* tmpName = GetRouterName(servSock[i]);
-					memset(neighborName, 0, sizeof(neighborName)); 
-					strncpy(neighborName, tmpName, 1);
+	       			if(servSock[i] != unconnectedSocket)
+	       			{
+	       				tmpName = GetRouterName(servSock[i]);
+						memset(neighborName, 0, sizeof(neighborName)); 
+						strncpy(neighborName, tmpName, 1);
+	       			}
+	       				
 
 	       			if(DEBUG)
 	       			{
-	       				printf("\nProcessing socket #%d...Router %s", i, neighborName); 
+	       				if(servSock[i] != unconnectedSocket)
+	       					printf("\nProcessing socket #%d...Router %s", i, neighborName); 
+	       				else
+	       					printf("\nReceived message on the unconnected socket, implying it's an L or P message"); 
 
 	       				if(readyDescriptors == 0)
 	       				{
@@ -437,126 +448,133 @@ int main(int argc, char* argv[])
 	       				}
 	       			}
 
+
+
 	   
 					
 					/*************************************************/
 					/* Receive all incoming data on this socket      */
 					/* before we loop back and call select again.    */
 					/*************************************************/
-					do
+					/**********************************************/
+					/* Receive data on this connection until the  */
+					/* recv fails If any other 					  */
+					/* failure occurs, we will close the          */
+					/* connection.                                */
+					/**********************************************/
+					numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
+					if (numBytes < 0)
 					{
-						/**********************************************/
-						/* Receive data on this connection until the  */
-						/* recv fails with EWOULDBLOCK.  If any other */
-						/* failure occurs, we will close the          */
-						/* connection.                                */
-						/**********************************************/
-						numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
-						if (numBytes < 0)
-						{
-						 if (errno != EWOULDBLOCK)
-						 {
-						    perror("recv() failed"); 
-						 }
-						 break;
-						}
+						printf("\nrecv() failed");
+					 	continue;
+					}
 
-						/**********************************************/
-						/* Check to see if the connection has been    */
-						/* closed by the client                       */
-						/**********************************************/
-						if (numBytes == 0)
-						{
-						 printf("  Connection closed\n");
-						 close_conn = 1;
-						 break;
-						}
+					/**********************************************/
+					/* Check to see if the connection has been    */
+					/* closed by the client                       */
+					/**********************************************/
+					if (numBytes == 0)
+					{
+					 printf("  Connection closed\n");
+					 close_conn = 1;
+					 continue;
+					}
 
-						printf("\nDescriptor %d is readable.", servSock[i]); 
+					printf("\nDescriptor %d is readable.", servSock[i]); 
 
-						/**********************************************/
-						/* Data was received                          */
-						/**********************************************/ 
+					/**********************************************/
+					/* Data was received                          */
+					/**********************************************/ 
+					if(servSock[i] != unconnectedSocket)
 						printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
 
 
-						/************************************************/ 
-						/* Examine the received data to figure out how  */ 
-						/* to process it. 								*/ 
-						/************************************************/ 
-						char messageType = messageBuffer[0];
-						int cost = messageBuffer[4] - '0'; 
+					/************************************************/ 
+					/* Examine the received data to figure out how  */ 
+					/* to process it. 								*/ 
+					/************************************************/ 
+					char messageType = messageBuffer[0];
 
-						switch(messageType)
-						{
-							case 'U':
-								printf("\nReceived router update message: %s", messageBuffer); 
-								char dest = messageBuffer[2]; 
-								printf("\nDestination: %c // Cost: %d", dest, cost); 
-								successfullyProcessedUpdate = 1; 
+					// TODO: Fix this calculation to accomodate costs of 2 digits 
+					int cost = 0; //messageBuffer[4] - '0'; 
 
-								if(strncmp(&dest, router, 1) == 0)
+					
+
+					switch(messageType)
+					{
+						case 'U':
+							printf("\nReceived router update message: %s", messageBuffer); 
+							char dest = messageBuffer[2]; 
+							printf("\nDestination: %c // Cost: %d", dest, cost); 
+							successfullyProcessedUpdate = 1; 
+
+							if(strncmp(&dest, router, 1) == 0)
+							{
+								if(DEBUG)
 								{
-									if(DEBUG)
-									{
-										printf("\nI don't want to look for myself in my own routing table!"); 
-										successfullyProcessedUpdate = 1; 
-										updatedRoutingTable = 1; 
-									}
-									break; 
-								}
-
-								routingTableEntry* entry = LookUpRouter(&dest, router); 
-
-
-								/************************************************************/
-								/* If link->cost != cost, then we must update the table 	*/  
-								/* If link->cost == 64, that indicates we had to add the new*/ 
-								/* router to the table, hence updating it. 					*/ 
-								/************************************************************/
-								if(entry->cost != cost || entry->cost == 64)
-								{
-									/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
-									if(cost < entry->cost)
-									{
-										entry->cost = cost; 
-										strncpy(entry->nextHop, neighborName, 1); 
-									}
-										
-
-									/* Calculate next hop 				*/ 
-									printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
-										router, dest, entry->cost, 0); 
-
+									printf("\nI don't want to look for myself in my own routing table!"); 
+									successfullyProcessedUpdate = 1; 
 									updatedRoutingTable = 1; 
 								}
 								break; 
-							case 'L':
-								printf("\nReceived link-change message: %s", messageBuffer); 
-								char neighbor = messageBuffer[2]; 
-								printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
-								successfullyProcessedUpdate = 1; 
-								updatedRoutingTable = 1; 
-								break; 
-							default: 
-								printf("\nReceived a message from Router %s, but I have no idea how to process it", neighborName); 
-								break; 
-						}
-
-						if(successfullyProcessedUpdate && updatedRoutingTable)
-						{
-							if(DEBUG)
-							{
-								printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
-								printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
-								SendRoutingTableToAllNeighbors(servSock); 
 							}
 
-							break; 		// exit the receiving loop
-						}
-						
+							routingTableEntry* entry = LookUpRouter(&dest, router); 
 
-					} while (1);
+
+							/************************************************************/
+							/* TODO: Fix the logic here 								*/ 
+							/* If link->cost != cost, then we must update the table 	*/  
+							/* If link->cost == 64, that indicates we had to add the new*/ 
+							/* router to the table, hence updating it. 					*/ 
+							/************************************************************/
+							if(entry->cost != cost || entry->cost == 64)
+							{
+								/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
+								if(cost < entry->cost)
+								{
+									entry->cost = cost; 
+									strncpy(entry->nextHop, neighborName, 1); 
+								}
+									
+
+								/* Calculate next hop 				*/ 
+								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
+									router, dest, entry->cost, 0); 
+
+								updatedRoutingTable = 1; 
+							}
+							break; 
+						case 'L':
+							printf("\nReceived L message: %s", messageBuffer); 
+							char neighbor = messageBuffer[2]; 
+							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
+
+							/********************************************************************************************/ 
+							/* TODO: Add logic here for changing the link or updating the routing table if necessary 	*/ 
+							/********************************************************************************************/ 
+							successfullyProcessedUpdate = 1; 
+							updatedRoutingTable = 1; 
+							break; 
+						case 'P': 
+							printf("\nReceived P message"); 
+							break; 
+						default: 
+							printf("\nReceived a message from Router %s, but what kind of message is %d?", neighborName, messageType); 
+							break; 
+					}
+
+					if(successfullyProcessedUpdate && updatedRoutingTable)
+					{
+						if(DEBUG)
+						{
+							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
+							printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
+							SendRoutingTableToAllNeighbors(servSock); 
+						}
+
+						break; 		// exit the receiving loop
+					}
 
 	               /*************************************************/
 	               /* If the close_conn flag was set, we need 		*/
