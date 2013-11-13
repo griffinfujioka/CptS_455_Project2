@@ -397,7 +397,7 @@ int main(int argc, char* argv[])
        		printf("Data is available now from %d socket(s).", retval);
 
      
-       	readyDescriptors = retval;
+       	readyDescriptors = retval + 1;		// Use retval + 1 because a L or P message could be transmitted to the unconnected socket 
 
        	/************************************************************/ 
        	/* Iterate through all selectable file descriptors 		*/ 
@@ -409,7 +409,7 @@ int main(int argc, char* argv[])
 
        		if(DEBUG)
        		{
-       			printf("\n-- Iteration %d.%d --", iterationCounter,i, (MAX_DESCRIPTOR - 1)); 
+       			printf("\n-- Iteration %d.%d --", iterationCounter,i); 
        		}
        		 
        		if(FD_ISSET(servSock[i], &rfds))
@@ -576,7 +576,7 @@ int main(int argc, char* argv[])
                   		}
 
                   		int j;
-                  		
+
                   		for(j = MAX_DESCRIPTOR - 1; j >= 0 && servSock[j] > 0; j--)
                   		{
                   			printf(" %d", j); 
