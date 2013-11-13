@@ -204,6 +204,9 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 	{
 		entry = &routingTable[i]; 
 
+		if(DEBUG)
+			printf("\nroutingTable[%d] = %s", i, entry->dest); 
+
 		if(entry == 0)
 			break; 
 
@@ -227,6 +230,7 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 	if(DEBUG)
 		printf("\nFailed to find entry for router in routing table... Adding an entry for Router %s at linkInfoTable[%d]", router, i); 
 
+	
 	routingTable[routingTableEntries].dest = malloc(strlen(router)+1); 
 	strncpy(routingTable[routingTableEntries].dest, router, 1); 
 	routingTable[routingTableEntries].cost = 64; 		// infinite cost 

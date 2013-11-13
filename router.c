@@ -418,7 +418,6 @@ int main(int argc, char* argv[])
 	       	/************************************************************/ 
 	       	/* Iterate through all selectable file descriptors 		*/ 
 	       	/************************************************************/
-	       	printf("\ncount = %d", count); 
 	       	for(i=0; i<= MAXROUTERS - 1; ++i)
 	       	{
 
@@ -523,7 +522,6 @@ int main(int argc, char* argv[])
 					switch(messageType)
 					{
 						case 'U':
-							printf("\nCost to neighbor %s: %d", neighborName, costToNeighbor); 
 							printf("\nReceived router update message: %s", messageBuffer); 
 							char dest = messageBuffer[2]; 
 							printf("\nDestination: %c // Cost: %d", dest, cost); 
@@ -534,7 +532,7 @@ int main(int argc, char* argv[])
 								{
 									printf("\nI don't want to look for myself in my own routing table!"); 
 									successfullyProcessedUpdate = 1; 
-									updatedRoutingTable = 1; 
+									updatedRoutingTable = 0; 
 								}
 								break; 
 							}
