@@ -589,13 +589,14 @@ int main(int argc, char* argv[])
 								{
 									entry->cost = costToNeighbor + cost; 
 									strncpy(entry->nextHop, neighborName, 1); 
-								}
+								
 									
 
-								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %s", 
-									router, dest, entry->cost, entry->nextHop); 
+									printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %s", 
+										router, dest, entry->cost, entry->nextHop); 
 
-								updatedRoutingTable = 1; 
+									updatedRoutingTable = 1; 
+								}
 							}
 
 							successfullyProcessedUpdate = 1; 
