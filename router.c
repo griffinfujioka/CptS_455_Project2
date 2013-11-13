@@ -150,6 +150,8 @@ int main(int argc, char* argv[])
 		printf("\nRouters in the system: ");
 	}
 
+	i = 0; 
+
 	while(i < MAXROUTERS)
 	{
 		
@@ -475,7 +477,7 @@ int main(int argc, char* argv[])
 	       				if(readyDescriptors == 0)
 	       				{
 	       					printf("\nThat was your last ready descriptor!"); 
-	       					break; 			// exit the for loop
+	       					
 	       				}
 	       			}
 

@@ -230,17 +230,18 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 	if(DEBUG)
 		printf("\nFailed to find entry for router in routing table... Adding an entry for Router %s at linkInfoTable[%d]", router, i); 
 
-	
+
 	routingTable[routingTableEntries].dest = malloc(strlen(router)+1); 
 	strncpy(routingTable[routingTableEntries].dest, router, 1); 
+	routingTable[routingTableEntries].dest[1] = '\0'; 
 	routingTable[routingTableEntries].cost = 64; 		// infinite cost 
 	routingTable[routingTableEntries].nextHop = malloc(strlen(router)+1); 
+	routingTable[routingTableEntries].nextHop[1] = '\0'; 
 
 	routingTableEntries += 1; 
 
 	printf("\nTesting for successful insert of Router %s", routingTable[i+1].dest); 
 
-	//return &linkInfoTable[i+1];
 	return &routingTable[i+1]; 
 
 
