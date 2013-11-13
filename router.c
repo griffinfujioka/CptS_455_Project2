@@ -98,6 +98,16 @@ int main(int argc, char* argv[])
 			router = argv[2]; 
 		}
 	}
+
+	/************************************/ 
+	/* Initialize the routing table 		*/ 
+	/************************************/ 
+	i = 0; 
+	for(i=0; i < MAXROUTERS; i++)
+	{
+		routingTable[i] = 0; 
+	}
+
 	
 
 	/************************************/ 
@@ -368,6 +378,7 @@ int main(int argc, char* argv[])
         }
 
         /* Wait up to 30 seconds. */
+        /* His discussion in class is making it seem like setting tv.tv_sec here is bad 	*/ 
    		tv.tv_sec = 15;
        	tv.tv_usec = 0;
 
@@ -430,6 +441,11 @@ int main(int argc, char* argv[])
 	       		 
 	       		if(FD_ISSET(servSock[i], &rfds))
 	       		{
+	       			/* If select() says the socket is ready 	*/ 
+	       			/* you really MUST read from the socket 	*/ 
+	       			/* I think I'm accomplishing that by 		*/ 
+	       			/* iterating through all of the fds using 	*/ 
+	       			/* the for loop above 						*/ 
 	       			readyDescriptors -= 1; 
 
 	       			char* tmpName; 
@@ -452,6 +468,7 @@ int main(int argc, char* argv[])
 	       				if(readyDescriptors == 0)
 	       				{
 	       					printf("\nThat was your last ready descriptor!"); 
+	       					break; 			// exit the for loop
 	       				}
 	       			}
 
@@ -501,8 +518,6 @@ int main(int argc, char* argv[])
 					/* to process it. 								*/ 
 					/************************************************/ 
 					char messageType = messageBuffer[0];
-
-					// TODO: Fix this calculation to accomodate costs of 2 digits 
 					int cost = messageBuffer[4] - '0'; 
 					// Calculate cost
 					int t = 5; 
@@ -575,6 +590,8 @@ int main(int argc, char* argv[])
 							}
 
 							successfullyProcessedUpdate = 1; 
+
+							close_conn = 1; 
 							break; 
 						case 'L':
 							printf("\nReceived L message: %s", messageBuffer); 
