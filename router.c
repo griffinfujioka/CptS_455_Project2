@@ -267,12 +267,13 @@ int main(int argc, char* argv[])
     if(DEBUG)
     	printf("\nSuccessfully created unconnected socket #%d for L and P messages.", unconnectedSocket); 
 
+    // Add the unconnectedSocket to the servSock[] array 	 
+   	servSock[unconnectedSocket] = unconnectedSocket;
+
     if(unconnectedSocket > MAX_DESCRIPTOR)
    	{
    		MAX_DESCRIPTOR = unconnectedSocket; 
 
-   		// Add the unconnectedSocket to the servSock[] array 	 
-   		servSock[MAX_DESCRIPTOR] = unconnectedSocket;
    		if(DEBUG)
    			printf("\nUpdated MAX_DESCRIPTOR to %d", unconnectedSocket); 
    	}
@@ -338,6 +339,10 @@ int main(int argc, char* argv[])
         /*************************************************/
         FD_ZERO(&rfds);
 
+        /* I'm not using the masterFD set socket setup earlier 	*/ 
+        /* Instead I'm using servSock[] array to reinitialize 	*/ 
+        /* rfds on each iteration. Kind of weird... 			*/ 
+
 
         /************************************************************/ 
         /* Set all sockets in the temporary file descriptor set 	*/ 
@@ -385,218 +390,220 @@ int main(int argc, char* argv[])
        		/* Since select timed out, meaning 30 seconds has passed 	*/ 
        		/* send your routing table to all of your neighbors 		*/ 
        		/************************************************************/ 
-       		for(i=0; i < MAX_DESCRIPTOR; i++)
+       		for(i=0; i < MAXROUTERS; i++)
        		{
-       			if(servSock[i] != 0)
+       			if(servSock[i] != 0 && servSock[i] != unconnectedSocket)
        			{
        				SendRoutingTable(servSock[i]); 
        			}
        		}
        	}
        	else if(retval)
+       	{
        		printf("Data is available now from %d socket(s).", retval);
 
      
-       	readyDescriptors = retval + 1;		// Use retval + 1 because a L or P message could be transmitted to the unconnected socket 
+	       	readyDescriptors = retval; 
 
-       	/************************************************************/ 
-       	/* Iterate through all selectable file descriptors 		*/ 
-       	/************************************************************/
-       	for(i=0; i<= MAX_DESCRIPTOR - 1 && readyDescriptors > 0; ++i)
-       	{
+	       	/************************************************************/ 
+	       	/* Iterate through all selectable file descriptors 		*/ 
+	       	/************************************************************/
+	       	for(i=0; i<= count - 1; ++i)
+	       	{
 
-       		memset(messageBuffer, 0, sizeof(messageBuffer));
+	       		memset(messageBuffer, 0, sizeof(messageBuffer));
 
-       		if(DEBUG)
-       		{
-       			printf("\n-- Iteration %d.%d --", iterationCounter,i); 
-       		}
-       		 
-       		if(FD_ISSET(servSock[i], &rfds))
-       		{
-       			readyDescriptors -= 1; 
+	       		if(DEBUG)
+	       		{
+	       			printf("\n-- Iteration %d.%d --", iterationCounter,i); 
+	       		}
+	       		 
+	       		if(FD_ISSET(servSock[i], &rfds))
+	       		{
+	       			readyDescriptors -= 1; 
 
 
-       			char* tmpName = GetRouterName(servSock[i]);
-				memset(neighborName, 0, sizeof(neighborName)); 
-				strncpy(neighborName, tmpName, 1);
+	       			char* tmpName = GetRouterName(servSock[i]);
+					memset(neighborName, 0, sizeof(neighborName)); 
+					strncpy(neighborName, tmpName, 1);
 
-       			if(DEBUG)
-       			{
-       				printf("\nProcessing socket #%d...Router %s", i, neighborName); 
+	       			if(DEBUG)
+	       			{
+	       				printf("\nProcessing socket #%d...Router %s", i, neighborName); 
 
-       				if(readyDescriptors == 0)
-       				{
-       					printf("\nThat was your last ready descriptor!"); 
-       				}
-       			}
+	       				if(readyDescriptors == 0)
+	       				{
+	       					printf("\nThat was your last ready descriptor!"); 
+	       				}
+	       			}
 
-   
-				
-				/*************************************************/
-				/* Receive all incoming data on this socket      */
-				/* before we loop back and call select again.    */
-				/*************************************************/
-				do
-				{
-					/**********************************************/
-					/* Receive data on this connection until the  */
-					/* recv fails with EWOULDBLOCK.  If any other */
-					/* failure occurs, we will close the          */
-					/* connection.                                */
-					/**********************************************/
-					numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
-					if (numBytes < 0)
+	   
+					
+					/*************************************************/
+					/* Receive all incoming data on this socket      */
+					/* before we loop back and call select again.    */
+					/*************************************************/
+					do
 					{
-					 if (errno != EWOULDBLOCK)
-					 {
-					    perror("recv() failed"); 
-					 }
-					 break;
-					}
+						/**********************************************/
+						/* Receive data on this connection until the  */
+						/* recv fails with EWOULDBLOCK.  If any other */
+						/* failure occurs, we will close the          */
+						/* connection.                                */
+						/**********************************************/
+						numBytes = recv(servSock[i], messageBuffer, sizeof(messageBuffer), 0);
+						if (numBytes < 0)
+						{
+						 if (errno != EWOULDBLOCK)
+						 {
+						    perror("recv() failed"); 
+						 }
+						 break;
+						}
 
-					/**********************************************/
-					/* Check to see if the connection has been    */
-					/* closed by the client                       */
-					/**********************************************/
-					if (numBytes == 0)
-					{
-					 printf("  Connection closed\n");
-					 close_conn = 1;
-					 break;
-					}
+						/**********************************************/
+						/* Check to see if the connection has been    */
+						/* closed by the client                       */
+						/**********************************************/
+						if (numBytes == 0)
+						{
+						 printf("  Connection closed\n");
+						 close_conn = 1;
+						 break;
+						}
 
-					printf("\nDescriptor %d is readable.", servSock[i]); 
+						printf("\nDescriptor %d is readable.", servSock[i]); 
 
-					/**********************************************/
-					/* Data was received                          */
-					/**********************************************/ 
-					printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
+						/**********************************************/
+						/* Data was received                          */
+						/**********************************************/ 
+						printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
 
 
-					/************************************************/ 
-					/* Examine the received data to figure out how  */ 
-					/* to process it. 								*/ 
-					/************************************************/ 
-					char messageType = messageBuffer[0];
-					int cost = messageBuffer[4] - '0'; 
+						/************************************************/ 
+						/* Examine the received data to figure out how  */ 
+						/* to process it. 								*/ 
+						/************************************************/ 
+						char messageType = messageBuffer[0];
+						int cost = messageBuffer[4] - '0'; 
 
-					switch(messageType)
-					{
-						case 'U':
-							printf("\nReceived router update message: %s", messageBuffer); 
-							char dest = messageBuffer[2]; 
-							printf("\nDestination: %c // Cost: %d", dest, cost); 
-							successfullyProcessedUpdate = 1; 
+						switch(messageType)
+						{
+							case 'U':
+								printf("\nReceived router update message: %s", messageBuffer); 
+								char dest = messageBuffer[2]; 
+								printf("\nDestination: %c // Cost: %d", dest, cost); 
+								successfullyProcessedUpdate = 1; 
 
-							if(strncmp(&dest, router, 1) == 0)
-							{
-								if(DEBUG)
+								if(strncmp(&dest, router, 1) == 0)
 								{
-									printf("\nI don't want to look for myself in my own routing table!"); 
-									successfullyProcessedUpdate = 1; 
+									if(DEBUG)
+									{
+										printf("\nI don't want to look for myself in my own routing table!"); 
+										successfullyProcessedUpdate = 1; 
+										updatedRoutingTable = 1; 
+									}
+									break; 
+								}
+
+								routingTableEntry* entry = LookUpRouter(&dest, router); 
+
+
+								/************************************************************/
+								/* If link->cost != cost, then we must update the table 	*/  
+								/* If link->cost == 64, that indicates we had to add the new*/ 
+								/* router to the table, hence updating it. 					*/ 
+								/************************************************************/
+								if(entry->cost != cost || entry->cost == 64)
+								{
+									/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
+									if(cost < entry->cost)
+									{
+										entry->cost = cost; 
+										strncpy(entry->nextHop, neighborName, 1); 
+									}
+										
+
+									/* Calculate next hop 				*/ 
+									printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
+										router, dest, entry->cost, 0); 
+
 									updatedRoutingTable = 1; 
 								}
 								break; 
-							}
-
-							routingTableEntry* entry = LookUpRouter(&dest, router); 
-
-
-							/************************************************************/
-							/* If link->cost != cost, then we must update the table 	*/  
-							/* If link->cost == 64, that indicates we had to add the new*/ 
-							/* router to the table, hence updating it. 					*/ 
-							/************************************************************/
-							if(entry->cost != cost || entry->cost == 64)
-							{
-								/* If the update cost is lower, we must update the routing table and send updates! 	*/ 
-								if(cost < entry->cost)
-								{
-									entry->cost = cost; 
-									strncpy(entry->nextHop, neighborName, 1); 
-								}
-									
-
-								/* Calculate next hop 				*/ 
-								printf("\nRouter %s making change: \n\tDestination: %c\n\tCost: %d\n\tNext hop: %d", 
-									router, dest, entry->cost, 0); 
-
+							case 'L':
+								printf("\nReceived link-change message: %s", messageBuffer); 
+								char neighbor = messageBuffer[2]; 
+								printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
+								successfullyProcessedUpdate = 1; 
 								updatedRoutingTable = 1; 
-							}
-							break; 
-						case 'L':
-							printf("\nReceived link-change message: %s", messageBuffer); 
-							char neighbor = messageBuffer[2]; 
-							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
-							successfullyProcessedUpdate = 1; 
-							updatedRoutingTable = 1; 
-							break; 
-						default: 
-							printf("\nReceived a message from Router %s, but I have no idea how to process it", neighborName); 
-							break; 
-					}
-
-					if(successfullyProcessedUpdate && updatedRoutingTable)
-					{
-						if(DEBUG)
-						{
-							printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
-							printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
-							SendRoutingTableToAllNeighbors(servSock); 
+								break; 
+							default: 
+								printf("\nReceived a message from Router %s, but I have no idea how to process it", neighborName); 
+								break; 
 						}
 
-						break; 		// exit the receiving loop
-					}
-					
+						if(successfullyProcessedUpdate && updatedRoutingTable)
+						{
+							if(DEBUG)
+							{
+								printf("\nSuccessfully processed update from Router %s via socket #%d", neighborName, servSock[i]); 
+								printf("\n[TRIGGERED UPDATE] : Sending my routing table to all neighboring routers."); 
+								SendRoutingTableToAllNeighbors(servSock); 
+							}
 
-				} while (1);
+							break; 		// exit the receiving loop
+						}
+						
 
-               /*************************************************/
-               /* If the close_conn flag was set, we need 		*/
-               /* to clean up this active connection.  This     */
-               /* clean up process includes removing the        */
-               /* descriptor from the master set and            */
-               /* determining the new maximum descriptor value  */
-               /* based on the bits that are still turned on in */
-               /* the master set.                               */
-               /*************************************************/
-               if (close_conn)
-               {
-               		if(DEBUG)
-               		{
-               			printf("\nClose Connection Flag Thrown!"); 
-               		}
-                  	
-                  	if (i == MAX_DESCRIPTOR)
-                  	{
-                  		if(DEBUG)
-                  		{
-                  			printf("\nAhhhh boy... we must update MAX_DESCRIPTOR!\n"); 
-                  		}
+					} while (1);
 
-                  		int j;
+	               /*************************************************/
+	               /* If the close_conn flag was set, we need 		*/
+	               /* to clean up this active connection.  This     */
+	               /* clean up process includes removing the        */
+	               /* descriptor from the master set and            */
+	               /* determining the new maximum descriptor value  */
+	               /* based on the bits that are still turned on in */
+	               /* the master set.                               */
+	               /*************************************************/
+	               if (close_conn)
+	               {
+	               		if(DEBUG)
+	               		{
+	               			printf("\nClose Connection Flag Thrown!"); 
+	               		}
+	                  	
+	                  	if (i == MAX_DESCRIPTOR)
+	                  	{
+	                  		if(DEBUG)
+	                  		{
+	                  			printf("\nAhhhh boy... we must update MAX_DESCRIPTOR!\n"); 
+	                  		}
 
-                  		for(j = MAX_DESCRIPTOR - 1; j >= 0 && servSock[j] > 0; j--)
-                  		{
-                  			printf(" %d", j); 
-                  		}
+	                  		int j;
 
-                  		MAX_DESCRIPTOR = j; 
+	                  		for(j = MAX_DESCRIPTOR - 1; j >= 0 && servSock[j] > 0; j--)
+	                  		{
+	                  			printf(" %d", j); 
+	                  		}
 
-                  		if(DEBUG)
-                  		{
-                  			printf("\nUpdated MAX_DESCRIPTOR to %d", MAX_DESCRIPTOR); 
-                  		}
-                  	}
-               }
+	                  		MAX_DESCRIPTOR = j; 
+
+	                  		if(DEBUG)
+	                  		{
+	                  			printf("\nUpdated MAX_DESCRIPTOR to %d", MAX_DESCRIPTOR); 
+	                  		}
+	                  	}
+	               }
 
 
 
 
-       		} /* End of if (FD_ISSET(i, &working_set)) */
+	       		} /* End of if (FD_ISSET(i, &working_set)) */
 
-       	} /* End of loop through selectable descriptors */
+	       	} /* End of loop through selectable descriptors */
+	    }
 
 
        			
