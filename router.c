@@ -105,7 +105,9 @@ int main(int argc, char* argv[])
 	i = 0; 
 	for(i=0; i < MAXROUTERS; i++)
 	{
-		routingTable[i] = 0; 
+		routingTable[i].dest = 0; 
+		routingTable[i].cost = 0; 
+		routingTable[i].nextHop = 0; 
 	}
 
 	
