@@ -28,6 +28,8 @@ void UpdateLinkInfo(char* neighbor, int cost);
 
 void UpdateRoutingTable(char* neighbor, int cost); 
 
+char* LookForShorterPath(char* finalDestination, int currentCost); 
+
 
 int main(int argc, char* argv[])
 {
@@ -84,20 +86,22 @@ int main(int argc, char* argv[])
 
 	printf("Welcome to the Distance-Vector Routing Program!\n"); 
 
+	if(argv[1] != 0)
+	{
+		directory = argv[1];  
+	}
+
+	if(argv[2] != 0)
+	{ 
+		router = argv[2]; 
+	}
+
 	if(DEBUG)
 	{
-		if(argv[1] != 0)
-		{
-			printf("\nDirectory: %s", argv[1]);
-			directory = argv[1];  
-		}
-
-		if(argv[2] != 0)
-		{
-			printf("\nRouter name: %s", argv[2]); 
-			router = argv[2]; 
-		}
+		printf("\nDirectory: %s", argv[1]);
+		printf("\nRouter name: %s", argv[2]);
 	}
+
 
 	/************************************/ 
 	/* Initialize the routing table 		*/ 
@@ -355,7 +359,9 @@ int main(int argc, char* argv[])
 
 		}
 
-		PrintRoutingTable(); 
+		printf("\n\n===================================="); 
+		PrintRoutingTable(router); 
+		printf("\n====================================="); 
 
 
 			
@@ -381,7 +387,8 @@ int main(int argc, char* argv[])
         	if(servSock[i] != 0)
         	{
         		FD_SET(servSock[i], &rfds);  
-        		printf("\nSet socket #%d", servSock[i]); 
+        		if(DEBUG)
+        			printf("\nSet socket #%d", servSock[i]); 
         	}
         		
         }
@@ -405,11 +412,13 @@ int main(int argc, char* argv[])
 
        	if(retval < 0)
        	{
-       		printf("select() failed"); 
+       		if(DEBUG)
+       			printf("\nselect() failed"); 
        	}
        	else if(retval == 0)
        	{
-       		printf("select() timed out"); 
+       		if(DEBUG)
+       			printf("select() timed out"); 
 
        		if(DEBUG)
        		{
@@ -430,7 +439,8 @@ int main(int argc, char* argv[])
        	}
        	else if(retval)
        	{
-       		printf("Data is available now from %d socket(s).", retval);
+       		if(DEBUG)
+       			printf("Data is available now from %d socket(s).", retval);
 
      
 	       	readyDescriptors = retval; 
@@ -513,12 +523,13 @@ int main(int argc, char* argv[])
 					 continue;
 					}
 
-					printf("\nDescriptor %d is readable.", servSock[i]); 
+					if(DEBUG)
+						printf("\nDescriptor %d is readable.", servSock[i]); 
 
 					/**********************************************/
 					/* Data was received                          */
 					/**********************************************/ 
-					if(servSock[i] != unconnectedSocket)
+					if(servSock[i] != unconnectedSocket && DEBUG)
 						printf("\n%zu bytes received from socket #%d (Router %s)\n", numBytes, servSock[i], neighborName);
 
 
@@ -546,9 +557,10 @@ int main(int argc, char* argv[])
 					switch(messageType)
 					{
 						case 'U':
-							printf("\nReceived router update message: %s", messageBuffer); 
+							printf("\nReceived U message: %s", messageBuffer); 
 							char dest = messageBuffer[2]; 
-							printf("\nDestination: %c // Cost: %d", dest, cost); 
+							if(DEBUG)
+								printf("\nDestination: %c // Cost: %d", dest, cost); 
 
 							if(strncmp(&dest, router, 1) == 0)
 							{
@@ -597,6 +609,15 @@ int main(int argc, char* argv[])
 
 									updatedRoutingTable = 1; 
 								}
+								/* TODO: Else if there's a shorter path known to us (using the DV 			*/ 
+								/* of one of our neighbors) use that path. That is, write a function		*/ 
+								/* which takes a final destination and iterates through all neighboring 	*/ 
+								/* routers to see if the cost to get to the neighboring router + the cost 	*/ 
+								/* from the neighboring router to the final destination router is less than */ 
+								/* the cost received in the update, use a new path via the neighbor 	 	*/ 
+								/* with the least cost path & update next hop. 								*/
+								/* Our function will return the name of the next hop and the cost to the	*/  
+								/* final destination. We will need to look up the cost to the new neighbor 	*/ 
 							}
 
 							successfullyProcessedUpdate = 1; 
@@ -604,13 +625,17 @@ int main(int argc, char* argv[])
 							close_conn = 1; 
 							break; 
 						case 'L':
+
 							printf("\nReceived L message: %s", messageBuffer); 
 							char neighbor = messageBuffer[2]; 
-							printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
+							if(DEBUG)
+								printf("\nNeighbor: %c // Cost: %d", neighbor, cost); 
 
 							UpdateLinkInfo(&neighbor, cost); 
 
 							UpdateRoutingTable(&neighbor, cost); 
+
+							printf("\nLink cost has changed to router %d: \n\tNew cost: %d", neighbor, cost); 
 
 							successfullyProcessedUpdate = 1; 
 							updatedRoutingTable = 1; 
@@ -628,7 +653,7 @@ int main(int argc, char* argv[])
 							}
 
 							if(i == 1)
-								PrintRoutingTable(); 			// Print this router's routing table 
+								PrintRoutingTable(router); 			// Print this router's routing table 
 							else if(i == 2)
 								PrintRoutingTableEntry(&messageBuffer[i]); 		// Print the routing table entry for messageBuffer[i], the destination 
 
@@ -726,10 +751,10 @@ void  SendRoutingTableToAllNeighbors(int servSock[])
 }
 
 
-void PrintRoutingTable()
+void PrintRoutingTable(char* router)
 {
 	int i = 0; 
-	printf("\nMy Routing Table: "); 
+	printf("\nRouter %s's Routing Table: ", router); 
 	printf("\nDestination\tCost\tNext Hop"); 
 	for(i=0; i < routingTableEntries; i++)
 	{
@@ -770,7 +795,8 @@ int GetCostToNeighbor(char* neighbor)
 		if(strncmp(neighbor, routerLink->router, 1) == 0)
 		{
 			int cost = routerLink->cost;
-			printf("\nFound the cost of neighboring router %s to be %d", neighbor, cost); 
+			if(DEBUG)
+				printf("\nFound the cost of neighboring router %s to be %d", neighbor, cost); 
 			return cost; 
 		}
 
@@ -787,7 +813,8 @@ void UpdateLinkInfo(char* neighbor, int cost)
 
 	int i = 0; 
 
-	printf("\nUpdating link info for router %s to cost %d", neighbor, cost); 
+	if(DEBUG)
+		printf("\nUpdating link info for router %s to cost %d", neighbor, cost); 
 
 	while(i < MAXLINKS)
 	{
@@ -799,7 +826,8 @@ void UpdateLinkInfo(char* neighbor, int cost)
 		if(strncmp(neighbor, routerLink->router, 1) == 0)
 		{
 			routerLink->cost = cost; 
-			printf("\nUpdated the cost of the link to neighbor %s to %d in my link info table", neighbor, cost); 
+			if(DEBUG)
+				printf("\nUpdated the cost of the link to neighbor %s to %d in my link info table", neighbor, cost); 
 			return; 
 		}
 
@@ -817,9 +845,21 @@ void UpdateRoutingTable(char* neighbor, int cost)
 		if(strncmp(neighbor, routingTable[i].dest, 1) == 0)
 		{
 			routingTable[i].cost = cost; 
-			printf("\nUpdated the cost of the link to neighbor %s to %d in my routing table", neighbor, cost); 
+			if(DEBUG)
+				printf("\nUpdated the cost of the link to neighbor %s to %d in my routing table", neighbor, cost); 
 			return; 
 		}
+	}
+}
+
+// Iterate through all neighboring routers seeing if another neighbor 
+// can offer a lower cost path. If so, return the name of the neighbor 
+char* LookForShorterPath(char* finalDestination, int currentCost)
+{
+	int i = 0; 
+	for(i=0; i < MAXLINKS; i++)
+	{
+		// Didn't get this done, not totally sure how it works 
 	}
 }
 

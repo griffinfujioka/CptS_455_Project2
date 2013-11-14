@@ -1,6 +1,6 @@
 #include "readrouters.c"
 
-static const int DEBUG = 1; 
+static const int DEBUG = 0; 
 
 /****************************************************************************/ 	
 /* Given a neighboring router's name, look up and return that router's 		*/ 
@@ -95,7 +95,8 @@ void SendRoutingTable(int socket)
 	strncpy(receiverName, tmpName, 1); 
 	receiverName[1] = '\0'; 
 
-	printf("\nAttempting to send routing table to %s (socket #%d)", receiverName, socket); 
+	if(DEBUG)
+		printf("\nAttempting to send routing table to %s (socket #%d)", receiverName, socket); 
 
 	/************************************************/ 
 	/* Iterate through your routing table sending 	*/ 
@@ -143,7 +144,8 @@ void SendRoutingTable(int socket)
 	        return; 
 	    }
 
-         printf("\nSuccessfully sent a %zu byte update message to Router %c via socket #%d: %s\n", numBytes, receiverName[0], socket, message); 
+	    if(DEBUG)
+        	printf("\nSuccessfully sent a %zu byte update message to Router %c via socket #%d: %s\n", numBytes, receiverName[0], socket, message); 
 	}
 
 }
@@ -240,7 +242,8 @@ routingTableEntry* LookUpRouter(char* router, char* me)
 
 	routingTableEntries += 1; 
 
-	printf("\nTesting for successful insert of Router %s", routingTable[i+1].dest); 
+	if(DEBUG)
+		printf("\nTesting for successful insert of Router %s", routingTable[i+1].dest); 
 
 	return &routingTable[i+1]; 
 

@@ -1,0 +1,600 @@
+Griffins-MacBook-Air:Project 2 griffin$ ./router test2 A
+Welcome to the Distance-Vector Routing Program!
+
+Directory: test2
+
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		4	C
+=====================================
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		4	C
+=====================================
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		4	C
+=====================================
+Received U message: U G 4
+Received U message: U D 1
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		4	C
+G		64	
+D		64	
+=====================================
+Received U message: U D 9
+Router A making change: 
+	Destination: D
+	Cost: 10
+	Next hop: B
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		4	C
+G		64	
+D		10	B
+=====================================
+Received U message: U C 2
+Router A making change: 
+	Destination: C
+	Cost: 3
+	Next hop: B
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		64	
+D		10	B
+=====================================
+Received U message: U H 2
+Received U message: U E 3
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		64	
+D		10	B
+H		64	
+E		64	
+=====================================
+Received U message: U A 1
+Received U message: U B 2
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		64	
+D		10	B
+H		64	
+E		64	
+=====================================
+Received U message: U A 4
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		64	
+D		10	B
+H		64	
+E		64	
+=====================================
+Received U message: U G 4
+Router A making change: 
+	Destination: G
+	Cost: 5
+	Next hop: B
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		10	B
+H		64	
+E		64	
+=====================================
+Received U message: U D 9
+Received U message: U D 1
+Router A making change: 
+	Destination: D
+	Cost: 5
+	Next hop: C
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		64	
+E		64	
+=====================================
+Received U message: U C 2
+Received U message: U E 3
+Router A making change: 
+	Destination: E
+	Cost: 7
+	Next hop: C
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		64	
+E		7	C
+=====================================
+Received U message: U H 2
+Router A making change: 
+	Destination: H
+	Cost: 3
+	Next hop: B
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U A 1
+Received U message: U B 2
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U A 4
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U G 4
+Received U message: U D 1
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U D 9
+Received U message: U E 3
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U C 2
+Received U message: U B 2
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U H 2
+Received U message: U A 4
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+=====================================
+Received U message: U A 1
+
+====================================
+Router A's Routing Table: 
+Destination	Cost	Next Hop
+B		1	B
+C		3	B
+G		5	B
+D		5	C
+H		3	B
+E		7	C
+====================================
+
+
+
+
+
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+recv() failed
+Received U message: U B 1
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U C 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U D 1
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U E 3
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U B 2
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U A 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U B 2
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U G 14
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U D 1
+Received U message: U B 1
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U E 3
+Received U message: U C 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U B 2
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U A 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U B 2
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U G 14
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U D 1
+Received U message: U B 1
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U E 3
+Received U message: U C 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U B 2
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+=====================================
+Received U message: U A 4
+
+====================================
+Router B's Routing Table: 
+Destination	Cost	Next Hop
+G		4	G
+D		3	C
+C		2	C
+H		2	H
+A		1	A
+E		5	C
+
+
+====================================
+Router C's Routing Table: 
+Destination	Cost	Next Hop
+D		1	D
+E		3	E
+B		2	B
+A		3	B
+G		6	B
+H		4	B
+F		4	E
+=====================================
+Received U message: U D 1
+
+====================================
+Router C's Routing Table: 
+Destination	Cost	Next Hop
+D		1	D
+E		3	E
+B		2	B
+A		3	B
+G		6	B
+H		4	B
+F		4	E
+=====================================
+Received U message: U F 1
+
+====================================
+Router C's Routing Table: 
+Destination	Cost	Next Hop
+D		1	D
+E		3	E
+B		2	B
+A		3	B
+G		6	B
+H		4	B
+F		4	E
+=====================================
+Received U message: U C 3
+
+====================================
+Router C's Routing Table: 
+Destination	Cost	Next Hop
+D		1	D
+E		3	E
+B		2	B
+A		3	B
+G		6	B
+H		4	B
+F		4	E
+=====================================
+Received U message: U D 1
+
+====================================
+Router C's Routing Table: 
+Destination	Cost	Next Hop
+D		1	D
+E		3	E
+B		2	B
+A		3	B
+G		6	B
+H		4	B
+F		4	E
+
+
+
+====================================
+Router F's Routing Table:
+Destination     Cost    Next Hop
+G               6       G
+D               2       E
+E               1       E
+C               4       E
+=====================================
+Received U message: U D 1
+
+====================================
+Router F's Routing Table:
+Destination     Cost    Next Hop
+G               6       G
+D               2       E
+E               1       E
+C               4       E
